@@ -1,0 +1,79 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: kiotel-postgres
+    environment:
+      POSTGRES_USER: rag
+      POSTGRES_PASSWORD: rag
+      POSTGRES_DB: kiotel_rag
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag -d kiotel_rag"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  rag-api:
+    build: .
+    container_name: kiotel-rag-api
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      PG_DSN: postgresql://rag:rag@postgres:5432/kiotel_rag
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 200s
+
+  ingest:
+    build: .
+    container_name: kiotel-ingest
+    command: python scripts/ingest.py
+    env_file:
+      - .env
+    environment:
+      PG_DSN: postgresql://rag:rag@postgres:5432/kiotel_rag
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - ingest
+
+  evaluate:
+    build: .
+    container_name: kiotel-evaluate
+    command: python scripts/evaluate.py
+    env_file:
+      - .env
+    environment:
+      PG_DSN: postgresql://rag:rag@postgres:5432/kiotel_rag
+    volumes:
+      - ./data:/app/data
+      - ./evaluation_results:/app/evaluation_results
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - evaluate
+
+volumes:
+  pgdata:

@@ -1,0 +1,27 @@
+Layer 1 — gateway.py call_llm()
+  Token budget: 4000 tokens for history
+  Action: trim from oldest messages first
+  When: every LLM call
+
+Layer 2 — context_manager.py
+  Threshold: 80% of 128k context window (~102k tokens)
+  Action: summarize old messages into one paragraph,
+          keep last 6 messages verbatim
+  When: before node_generate_response if messages are long
+
+Layer 3 — portal_a/main.py session store
+  Limit: 30 messages (15 turns) per session
+  Action: sliding window, oldest dropped
+  When: after every chat response
+
+
+What happens at 80% context:
+
+20 messages exist → context_manager detects 80%+ used
+    → summarize messages 1-14 into ~150 word paragraph
+    → keep messages 15-20 verbatim
+    → inject summary into system prompt:
+      "--- CONVERSATION SUMMARY (earlier context) ---
+       User asked about X, assistant explained Y...
+       ---"
+    → LLM gets full context without token overflow

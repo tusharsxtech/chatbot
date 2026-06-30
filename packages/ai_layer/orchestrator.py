@@ -21,7 +21,6 @@ from packages.ai_layer.gateway import (
 from packages.ai_layer.prompt_manager import build_prompt
 from packages.ai_layer.task_executor import log_interaction, trigger_escalation
 from packages.ai_layer.tool_loader import load_all_tools
-# route() removed — tool dispatch now handled by call_llm_for_tool_dispatch in node_tool_router
 from packages.ai_layer.tool_router import execute_tools
 from packages.ai_layer.context_manager import get_safe_messages_for_llm, estimate_context_usage_pct
 from services.cache import l1_store, l2_store
@@ -39,6 +38,17 @@ except Exception:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+import time
+import functools
+
+def timed_node(fn):
+    @functools.wraps(fn)
+    def wrapper(data: dict) -> dict:
+        t0 = time.perf_counter()
+        result = fn(data)
+        logger.info("%s took %.0fms", fn.__name__, (time.perf_counter() - t0) * 1000)
+        return result
+    return wrapper
 
 def _record_error(state: OrchestratorState, node_name: str, exc: Exception) -> None:
     logger.error("Node '%s' failed: %s", node_name, exc, exc_info=True)
@@ -62,7 +72,7 @@ def _build_tool_context(tool_results: dict) -> str:
 # ---------------------------------------------------------------------------
 # Graph nodes
 # ---------------------------------------------------------------------------
-
+@timed_node
 def node_guardrail_input(data: dict) -> dict:
     state: OrchestratorState = data["state"]
     try:
@@ -76,20 +86,18 @@ def node_guardrail_input(data: dict) -> dict:
     return {"state": state}
 
 
+@timed_node
 def node_query_rewrite(data: dict) -> dict:
     state: OrchestratorState = data["state"]
     if not state.guardrail_result or not state.guardrail_result.passed:
         return {"state": state}
     try:
-        # Always load L1 context — needed for routing even if rewrite is skipped
         l1_ctx = l1_store.summary(state.session_id, state.portal_id)
         state.metadata["l1_context"] = l1_ctx
 
-        # Skip rewrite LLM call if: escalation detected, or no history context
         if detect_escalation_triggers(state.sanitized_input):
             return {"state": state}
         if not l1_ctx or not l1_ctx.strip():
-            # No history → nothing to resolve, skip LLM call entirely
             return {"state": state}
 
         original_input = state.sanitized_input
@@ -103,7 +111,7 @@ def node_query_rewrite(data: dict) -> dict:
         _record_error(state, "query_rewrite", e)
     return {"state": state}
 
-
+@timed_node
 def node_l1_check(data: dict) -> dict:
     state: OrchestratorState = data["state"]
     if not state.guardrail_result or not state.guardrail_result.passed:
@@ -121,7 +129,7 @@ def node_l1_check(data: dict) -> dict:
         _record_error(state, "l1_check", e)
     return {"state": state}
 
-
+@timed_node
 def node_l2_check(data: dict) -> dict:
     state: OrchestratorState = data["state"]
     if state.l1_hit:
@@ -143,19 +151,13 @@ def node_l2_check(data: dict) -> dict:
         _record_error(state, "l2_check", e)
     return {"state": state}
 
-
+@timed_node
 def node_detect_intent(data: dict) -> dict:
-    """
-    Kept as a lightweight escalation/multi-query pre-check using rules only.
-    Full intent classification + routing now happens in node_tool_router via
-    call_llm_for_classify_and_route — one smart LLM call that does both.
-    """
     state: OrchestratorState = data["state"]
     if not state.guardrail_result or not state.guardrail_result.passed:
         return {"state": state}
 
     try:
-        # Rule-based escalation check — no LLM needed
         escalation_reason = detect_escalation_triggers(state.sanitized_input)
         if escalation_reason:
             state.intent = IntentResult(
@@ -166,27 +168,12 @@ def node_detect_intent(data: dict) -> dict:
     except Exception as e:
         _record_error(state, "detect_intent", e)
 
-    # Defer full classification to node_tool_router
     state.intent = IntentResult(primary_intent=IntentType.GENERAL)
     return {"state": state}
 
 
+@timed_node
 def node_tool_router(data: dict) -> dict:
-    """
-    Brain of the orchestrator.
-
-    PARALLEL EXECUTION:
-    - classify_and_route (LLM) runs at the same time as the first service call
-    - If classify picks a service that matches our optimistic pre-call, result is ready
-    - This cuts latency by running the ~5s classify call and ~15s RAG call together
-
-    Flow:
-        greeting/chit_chat  → no tools → LLM handles directly
-        service_query       → call matched service(s)
-            RAG answered    → return directly, no extra LLM
-            other tools     → LLM generates using tool context
-        multi_query         → handled by node_handle_multi_query
-    """
     from packages.ai_layer.tool_registry import registry
 
     state: OrchestratorState = data["state"]
@@ -207,9 +194,6 @@ def node_tool_router(data: dict) -> dict:
         for m in state.messages[-6:]
     ]
 
-    # Run classify_and_route in parallel with a speculative RAG call.
-    # We optimistically call the RAG while the classifier is thinking.
-    # If classifier confirms RAG, we use the result — otherwise discard it.
     rag_tool = registry.get("kiotel_dashboard_rag")
 
     def run_classify():
@@ -239,17 +223,15 @@ def node_tool_router(data: dict) -> dict:
             logger.warning("Speculative RAG call failed: %s", e)
             return {"found": False, "error": str(e)}
 
-    # Launch both in parallel
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
         classify_future = executor.submit(run_classify)
         rag_future = executor.submit(run_rag_speculative)
 
-        decision = classify_future.result()        # wait for classify
-        speculative_rag = rag_future.result()      # wait for RAG (usually done by now)
+        decision = classify_future.result()
+        speculative_rag = rag_future.result()
 
     logger.info("classify_and_route: %s", decision)
 
-    # Map query_type to IntentType
     query_type = decision["query_type"]
     if query_type == "greeting":
         state.intent = IntentResult(primary_intent=IntentType.GREETING)
@@ -271,17 +253,14 @@ def node_tool_router(data: dict) -> dict:
         "is_chit_chat": query_type in ("greeting", "chit_chat"),
     }
 
-    # No services → LLM handles
     if query_type in ("greeting", "chit_chat") or not decision["services"]:
         state.metadata["tool_results"] = {}
         return {"state": state}
 
-    # Multi-query → handled downstream
     if state.intent.is_multi_query:
         state.metadata["tool_results"] = {}
         return {"state": state}
 
-    # Use speculative RAG result if classifier confirmed it
     tool_results = {}
     rag_confirmed = "kiotel_dashboard_rag" in decision["services"]
 
@@ -289,7 +268,6 @@ def node_tool_router(data: dict) -> dict:
         tool_results["kiotel_dashboard_rag"] = speculative_rag
         logger.info("speculative RAG used: found=%s", speculative_rag.get("found"))
     elif rag_confirmed and speculative_rag is None:
-        # RAG tool unavailable, call synchronously
         if rag_tool and rag_tool.enabled:
             try:
                 tool_results["kiotel_dashboard_rag"] = rag_tool.handler({
@@ -299,10 +277,9 @@ def node_tool_router(data: dict) -> dict:
             except Exception as e:
                 tool_results["kiotel_dashboard_rag"] = {"found": False, "error": str(e)}
 
-    # Execute any other non-RAG services selected
     for service_name in decision["services"]:
         if service_name == "kiotel_dashboard_rag":
-            continue  # already handled above
+            continue
         tool = registry.get(service_name)
         if not tool or not tool.enabled:
             tool_results[service_name] = {"error": f"Service '{service_name}' unavailable."}
@@ -318,7 +295,7 @@ def node_tool_router(data: dict) -> dict:
     state.metadata["tool_results"] = tool_results
     return {"state": state}
 
-
+@timed_node
 def node_handle_escalation(data: dict) -> dict:
     state: OrchestratorState = data["state"]
     if not state.intent or state.intent.primary_intent != IntentType.ESCALATION:
@@ -331,7 +308,7 @@ def node_handle_escalation(data: dict) -> dict:
         state.escalation = EscalationResult(triggered=True, reason=reason, ticket_id="ESC-PENDING")
     return {"state": state}
 
-
+@timed_node
 def node_handle_multi_query(data: dict) -> dict:
     state: OrchestratorState = data["state"]
     if not state.intent or not state.intent.is_multi_query:
@@ -343,7 +320,6 @@ def node_handle_multi_query(data: dict) -> dict:
 
     for sub_q in state.intent.sub_queries:
         try:
-            # Use unified classify+route for each sub-query
             decision = call_llm_for_classify_and_route(sub_q, services_schema, history_context=l1_ctx)
             sub_tools = {}
 
@@ -360,13 +336,11 @@ def node_handle_multi_query(data: dict) -> dict:
                         except Exception as te:
                             sub_tools[tool_name] = {"error": str(te)}
 
-            # RAG answered → use directly
             rag = _rag_tool_result(sub_tools)
             if rag:
                 sub_responses.append(f"Q: {sub_q}\n{rag['answer']}")
                 continue
 
-            # Other tools or no tools → LLM generates
             tool_context = _build_tool_context(sub_tools)
             ctx = (f"\n\nSession context:\n{l1_ctx}" if l1_ctx else "") + tool_context
             response = call_llm(build_prompt(state.portal_id) + ctx, state.messages, sub_q)
@@ -383,7 +357,7 @@ def node_handle_multi_query(data: dict) -> dict:
     )
     return {"state": state}
 
-
+@timed_node
 def node_generate_response(data: dict) -> dict:
     state: OrchestratorState = data["state"]
     if state.final_response:
@@ -411,7 +385,6 @@ def node_generate_response(data: dict) -> dict:
 
     tool_results = state.metadata.get("tool_results", {})
 
-    # --- RAG short-circuit: return RAG answer directly, no extra LLM call ---
     rag = _rag_tool_result(tool_results)
     if rag:
         state.final_response = AIResponse(
@@ -425,14 +398,12 @@ def node_generate_response(data: dict) -> dict:
         )
         return {"state": state}
 
-    # --- Normal LLM generation path (non-RAG tools or no tools) ---
     l1_ctx = state.metadata.get("l1_context", "")
     tool_context = _build_tool_context(tool_results)
     ctx = (f"\n\nSession context:\n{l1_ctx}" if l1_ctx else "") + tool_context
     system_prompt = build_prompt(state.portal_id) + ctx
     intent = state.intent.primary_intent if state.intent else IntentType.GENERAL
 
-    # Context window management — summarize old messages if approaching 80% limit
     safe_messages, conv_summary = get_safe_messages_for_llm(
         state.messages, system_prompt, call_llm, state.session_id
     )
@@ -451,45 +422,6 @@ def node_generate_response(data: dict) -> dict:
         intent=intent,
         metadata=state.metadata.get("tool_route", {}),
     )
-    return {"state": state}
-
-
-def node_faithfulness_check(data: dict) -> dict:
-    state: OrchestratorState = data["state"]
-    if not state.final_response or state.l1_hit or state.l2_hit:
-        return {"state": state}
-    if state.final_response.intent in (IntentType.ESCALATION, IntentType.MULTI_QUERY, IntentType.UNKNOWN):
-        return {"state": state}
-
-    # RAG answers are already grounded at source — skip the extra judge call.
-    tool_results = state.metadata.get("tool_results", {})
-    if _rag_tool_result(tool_results):
-        state.metadata["faithfulness"] = {"grounded": True, "reason": "Answer sourced directly from RAG pipeline."}
-        return {"state": state}
-
-    context_parts = []
-    if tool_results:
-        context_parts.append(json.dumps({k: v for k, v in tool_results.items() if k != "kiotel_dashboard_rag"}))
-
-    grounding_context = "\n".join(context_parts).strip()
-    if not grounding_context:
-        return {"state": state}
-
-    try:
-        verdict = call_llm_for_faithfulness(state.final_response.content, grounding_context)
-        state.metadata["faithfulness"] = verdict
-        if not verdict.get("grounded", True):
-            try:
-                strict_prompt = build_prompt(state.portal_id) + \
-                    "\n\nIMPORTANT: Only use facts explicitly present in the tool context above. Do not invent details."
-                regenerated = call_llm(strict_prompt, state.messages, state.sanitized_input)
-                state.final_response.content = regenerated
-                state.metadata["faithfulness_retried"] = True
-            except Exception as regen_e:
-                _record_error(state, "faithfulness_check.regenerate", regen_e)
-                state.metadata["faithfulness_flagged"] = True
-    except Exception as e:
-        _record_error(state, "faithfulness_check", e)
     return {"state": state}
 
 
@@ -514,10 +446,6 @@ _FALLBACK_PHRASES = [
 
 
 def _is_cacheable_response(response_text: str, tool_results: dict) -> bool:
-    """
-    Returns True only if the response is a genuine grounded answer worth caching.
-    Rejects fallback/error messages and responses generated when RAG failed.
-    """
     if not response_text or len(response_text.strip()) < 20:
         return False
 
@@ -526,7 +454,6 @@ def _is_cacheable_response(response_text: str, tool_results: dict) -> bool:
         if phrase in lower:
             return False
 
-    # If RAG was called but failed, the LLM generated a fallback — don't cache it
     rag_result = tool_results.get("kiotel_dashboard_rag")
     if rag_result is not None and not rag_result.get("found", False):
         return False
@@ -534,6 +461,7 @@ def _is_cacheable_response(response_text: str, tool_results: dict) -> bool:
     return True
 
 
+@timed_node
 def node_l2_write(data: dict) -> dict:
     state: OrchestratorState = data["state"]
     if not state.final_response or state.l1_hit or state.l2_hit:
@@ -543,7 +471,6 @@ def node_l2_write(data: dict) -> dict:
     response_text = state.final_response.content
     intent = state.final_response.intent
 
-    # Only cache successful grounded responses
     if not _is_cacheable_response(response_text, tool_results):
         logger.info("Skipping cache write — response is fallback or RAG failed")
         return {"state": state}
@@ -560,21 +487,7 @@ def node_l2_write(data: dict) -> dict:
         _record_error(state, "l2_write", e)
     return {"state": state}
 
-
-def node_guardrail_output(data: dict) -> dict:
-    state: OrchestratorState = data["state"]
-    if not state.final_response:
-        return {"state": state}
-    try:
-        result = check_output(state.final_response.content)
-        if not result.passed:
-            state.final_response.content = "I encountered an issue generating a safe response. Please try rephrasing your question."
-    except Exception as e:
-        _record_error(state, "guardrail_output", e)
-        state.final_response.content = "I encountered an issue generating a safe response. Please try rephrasing your question."
-    return {"state": state}
-
-
+@timed_node
 def node_log(data: dict) -> dict:
     state: OrchestratorState = data["state"]
     try:
@@ -598,14 +511,14 @@ def route_after_guardrail(data: dict) -> str:
 def route_after_l1(data: dict) -> str:
     state: OrchestratorState = data["state"]
     if state.l1_hit:
-        return "guardrail_output"
+        return "l2_write"
     return "l2_check"
 
 
 def route_after_l2(data: dict) -> str:
     state: OrchestratorState = data["state"]
     if state.l2_hit:
-        return "guardrail_output"
+        return "l2_write"
     return "detect_intent"
 
 
@@ -645,9 +558,7 @@ def build_graph():
     graph.add_node("handle_escalation", node_handle_escalation)
     graph.add_node("handle_multi_query", node_handle_multi_query)
     graph.add_node("generate_response", node_generate_response)
-    graph.add_node("faithfulness_check", node_faithfulness_check)
     graph.add_node("l2_write", node_l2_write)
-    graph.add_node("guardrail_output", node_guardrail_output)
     graph.add_node("log", node_log)
 
     graph.set_entry_point("guardrail_input")
@@ -658,11 +569,11 @@ def build_graph():
     })
     graph.add_edge("query_rewrite", "l1_check")
     graph.add_conditional_edges("l1_check", route_after_l1, {
-        "guardrail_output": "guardrail_output",
+        "l2_write": "l2_write",
         "l2_check": "l2_check",
     })
     graph.add_conditional_edges("l2_check", route_after_l2, {
-        "guardrail_output": "guardrail_output",
+        "l2_write": "l2_write",
         "detect_intent": "detect_intent",
     })
     graph.add_conditional_edges("detect_intent", route_after_intent, {
@@ -676,11 +587,9 @@ def build_graph():
     })
 
     graph.add_edge("handle_escalation", "generate_response")
-    graph.add_edge("generate_response", "faithfulness_check")
-    graph.add_edge("faithfulness_check", "l2_write")
+    graph.add_edge("generate_response", "l2_write")
     graph.add_edge("handle_multi_query", "l2_write")
-    graph.add_edge("l2_write", "guardrail_output")
-    graph.add_edge("guardrail_output", "log")
+    graph.add_edge("l2_write", "log")
     graph.add_edge("log", END)
 
     return graph.compile(checkpointer=l1_store.get_checkpointer())
@@ -697,7 +606,33 @@ def get_graph():
 
 
 def run_orchestrator(state: OrchestratorState) -> OrchestratorState:
+    t0 = time.perf_counter()
     graph = get_graph()
     config = {"configurable": {"thread_id": f"{state.portal_id}:{state.session_id}"}}
     result = graph.invoke({"state": state}, config=config)
+    logger.info("run_orchestrator TOTAL took %.0fms", (time.perf_counter() - t0) * 1000)
     return result["state"]
+
+
+def run_orchestrator_stream(state: OrchestratorState):
+    t0 = time.perf_counter()
+    graph = get_graph()
+    config = {"configurable": {"thread_id": f"{state.portal_id}:{state.session_id}"}}
+    result = graph.invoke({"state": state}, config=config)
+    final_state = result["state"]
+    logger.info("run_orchestrator TOTAL took %.0fms", (time.perf_counter() - t0) * 1000)
+
+    response_text = final_state.final_response.content if final_state.final_response else "I'm sorry, I couldn't process that."
+    guardrail_blocked = bool(final_state.guardrail_result and not final_state.guardrail_result.passed)
+
+    yield json.dumps({
+        "type": "metadata",
+        "session_id": state.session_id,
+        "guardrail_blocked": guardrail_blocked,
+        "l1_hit": final_state.l1_hit,
+        "l2_hit": final_state.l2_hit,
+        "intent": final_state.final_response.intent.value if final_state.final_response and hasattr(final_state.final_response.intent, "value") else "unknown",
+    })
+
+    for word in response_text.split(" "):
+        yield json.dumps({"type": "chunk", "text": word + " "})

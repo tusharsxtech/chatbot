@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
-from typing import List, Optional
+import json
+from typing import Iterator, List, Optional
 
 from configs.settings import get_settings
 from configs.logging_config import get_logger
@@ -34,69 +35,46 @@ class RAGChain:
         self.settings = get_settings()
 
     def query(
-        self,
-        question: str,
-        chat_history: Optional[List[ChatMessage]] = None,
-    ) -> RAGResponse:
-        input_check = self.guardrail.check_input(question)
-        if input_check.blocked:
-            logger.warning("query_blocked_by_guardrail", reason=input_check.reason)
-            return RAGResponse(
-                answer=input_check.message,
-                source_documents=[],
-                guardrail_result=input_check,
-                blocked=True,
-            )
+    self,
+    question: str,
+    chat_history: Optional[List[ChatMessage]] = None,
+    ) -> Iterator[str]:
 
-        standalone_query = question
-        if chat_history and len(chat_history) >= 2:
-            standalone_query = self._condense_question(question, chat_history)
+     input_check = self.guardrail.check_input(question)
+     if input_check.blocked:
+        logger.warning("query_blocked_by_guardrail", reason=input_check.reason)
+        yield json.dumps({"type": "blocked", "message": input_check.message, "source_documents": [], "query_used": ""})
+        return
 
-        retrieved = self.retriever.retrieve(standalone_query)
+     standalone_query = question
+     if chat_history and len(chat_history) >= 2:
+        standalone_query = self._condense_question(question, chat_history)
 
-        relevance_check = self.guardrail.check_relevance(standalone_query, retrieved)
-        if relevance_check.blocked:
-            logger.warning("low_relevance_blocked", score=relevance_check.score)
-            return RAGResponse(
-                answer=relevance_check.message,
-                source_documents=retrieved,
-                guardrail_result=relevance_check,
-                query_used=standalone_query,
-                blocked=True,
-            )
+     retrieved = self.retriever.retrieve(standalone_query)
 
-        context = format_context(retrieved)
-        messages = build_rag_messages(standalone_query, context)
-        answer = self.llm.chat(messages, temperature=0.1, max_tokens=self.settings.guardrail_max_output_tokens)
+     relevance_check = self.guardrail.check_relevance(standalone_query, retrieved)
+     if relevance_check.blocked:
+        logger.warning("low_relevance_blocked", score=relevance_check.score)
+        yield json.dumps({"type": "blocked", "message": relevance_check.message, "source_documents": retrieved, "query_used": standalone_query})
+        return
 
-        output_check = self.guardrail.check_output(answer)
-        if output_check.blocked:
-            logger.warning("output_blocked_by_guardrail", reason=output_check.reason)
-            return RAGResponse(
-                answer=output_check.message,
-                source_documents=retrieved,
-                guardrail_result=output_check,
-                query_used=standalone_query,
-                blocked=True,
-            )
+     context = format_context(retrieved)
+     messages = build_rag_messages(standalone_query, context)
 
-        logger.info("rag_query_complete", query=standalone_query[:80], sources=len(retrieved))
-        return RAGResponse(
-            answer=answer,
-            source_documents=retrieved,
-            query_used=standalone_query,
-        )
+    # send metadata first before chunks
+     yield json.dumps({"type": "metadata", "source_documents": retrieved, "query_used": standalone_query, "blocked": False})
 
-    def _condense_question(
-        self, question: str, chat_history: List[ChatMessage]
-    ) -> str:
-        history_str = "\n".join(
-            f"{m.role.capitalize()}: {m.content}" for m in chat_history[-6:]
-        )
-        messages = build_condense_messages(question, history_str)
-        raw = self.llm.chat(messages, temperature=0.0, max_tokens=256)
-        condensed = self._extract_question(raw)
-        return condensed
+     full_answer = ""
+     for chunk in self.llm.chat(messages, temperature=0.1, max_tokens=self.settings.guardrail_max_output_tokens, stream=True):
+        full_answer += chunk
+        yield json.dumps({"type": "chunk", "text": chunk})
+
+     output_check = self.guardrail.check_output(full_answer)
+     if output_check.blocked:
+        logger.warning("output_blocked_by_guardrail", reason=output_check.reason)
+        yield json.dumps({"type": "blocked", "message": output_check.message, "source_documents": retrieved, "query_used": standalone_query})
+
+     logger.info("rag_query_complete", query=standalone_query[:80], sources=len(retrieved))   
 
     @staticmethod
     def _extract_question(raw: str) -> str:

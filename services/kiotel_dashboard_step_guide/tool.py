@@ -4,6 +4,7 @@ sys.path.insert(0, "/app")
 import os
 import logging
 import httpx
+import json
 
 from packages.ai_layer.tool_registry import register_tool
 
@@ -14,19 +15,48 @@ RAG_TIMEOUT = float(os.getenv("KIOTEL_RAG_TIMEOUT", "180.0"))  # RAG uses heavy 
 
 
 def _call_rag(question: str, chat_history: list[dict] | None = None) -> dict:
-    """
-    Calls the kiotel_dashboard_rag /query endpoint and returns the parsed response.
-    Returns a dict with keys: answer, source_documents, query_used, blocked, latency_ms.
-    Raises on HTTP or network errors so the tool_router can surface them.
-    """
     payload: dict = {"question": question}
     if chat_history:
         payload["chat_history"] = chat_history
 
+    metadata = {}
+    full_answer = ""
+    blocked = False
+    blocked_message = ""
+
     with httpx.Client(timeout=RAG_TIMEOUT) as client:
-        resp = client.post(f"{RAG_BASE_URL}/query", json=payload)
-        resp.raise_for_status()
-        return resp.json()
+        with client.stream("POST", f"{RAG_BASE_URL}/query", json=payload) as resp:
+            resp.raise_for_status()
+            for line in resp.iter_lines():
+                if not line.startswith("data:"):
+                    continue
+                data_str = line[len("data:"):].strip()
+                if data_str == "[DONE]":
+                    break
+                try:
+                    event = json.loads(data_str)
+                except json.JSONDecodeError:
+                    continue
+
+                if event["type"] == "metadata":
+                    metadata = event
+                elif event["type"] == "chunk":
+                    full_answer += event.get("text", "")
+                elif event["type"] == "blocked":
+                    blocked = True
+                    blocked_message = event.get("message", "")
+                    break
+
+    if blocked:
+        return {"blocked": True, "answer": blocked_message}
+
+    return {
+        "answer": full_answer,
+        "source_documents": metadata.get("source_documents", []),
+        "query_used": metadata.get("query_used", question),
+        "blocked": False,
+        "latency_ms": None,
+    }
 
 
 @register_tool(

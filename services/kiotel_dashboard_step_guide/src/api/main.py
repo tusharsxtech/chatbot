@@ -1,10 +1,11 @@
 import time
 from contextlib import asynccontextmanager
 from typing import List, Optional
+import json
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from configs.settings import get_settings
@@ -20,7 +21,6 @@ async def lifespan(app: FastAPI):
     global _rag_chain
     logger.info("initializing_rag_chain")
     _rag_chain = RAGChain()
-    # Warm up — triggers BM25 index load and model loading before first real query
     try:
         logger.info("warming_up_rag")
         _rag_chain.query("warmup")
@@ -56,20 +56,6 @@ class QueryRequest(BaseModel):
     chat_history: Optional[List[MessageIn]] = None
 
 
-class SourceDocument(BaseModel):
-    content: str
-    metadata: dict
-    score: float
-
-
-class QueryResponse(BaseModel):
-    answer: str
-    source_documents: List[SourceDocument]
-    query_used: str
-    blocked: bool
-    latency_ms: float
-
-
 class HealthResponse(BaseModel):
     status: str
     index_count: int
@@ -95,7 +81,7 @@ async def health():
     )
 
 
-@app.post("/query", response_model=QueryResponse)
+@app.post("/query")
 async def query(req: QueryRequest):
     if _rag_chain is None:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="RAG chain not ready")
@@ -104,26 +90,12 @@ async def query(req: QueryRequest):
     if req.chat_history:
         history = [ChatMessage(role=m.role, content=m.content) for m in req.chat_history]
 
-    t0 = time.perf_counter()
-    response = _rag_chain.query(req.question, chat_history=history)
-    elapsed_ms = (time.perf_counter() - t0) * 1000
+    def generate():
+        for event in _rag_chain.query(req.question, chat_history=history):
+            yield f"data: {event}\n\n"
+        yield "data: [DONE]\n\n"
 
-    sources = [
-        SourceDocument(
-            content=d["content"],
-            metadata=d.get("metadata", {}),
-            score=d.get("rerank_score", d.get("hybrid_score", 0.0)),
-        )
-        for d in response.source_documents
-    ]
-
-    return QueryResponse(
-        answer=response.answer,
-        source_documents=sources,
-        query_used=response.query_used,
-        blocked=response.blocked,
-        latency_ms=round(elapsed_ms, 2),
-    )
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 @app.exception_handler(Exception)

@@ -33,3 +33,5 @@
 {"timestamp": "2026-06-25T16:35:11.198625", "session_id": "cc6591df-a5d6-4414-9a21-8e3268646378", "portal_id": "portal_a", "input": "how do i dispence key", "intent": "unknown", "response_length": 841}
 {"timestamp": "2026-06-25T16:38:00.517358", "session_id": "cc6591df-a5d6-4414-9a21-8e3268646378", "portal_id": "portal_a", "input": "what are these color indicators", "intent": "general", "response_length": 464}
 {"timestamp": "2026-06-25T16:43:05.069336", "session_id": "cc6591df-a5d6-4414-9a21-8e3268646378", "portal_id": "portal_a", "input": "how to print reciept", "intent": "general", "response_length": 1252}
+{"timestamp": "2026-06-30T14:24:49.899758", "session_id": "e890563c-f411-4820-a3f9-52497e986b32", "portal_id": "portal_a", "input": "how to dispense cash", "intent": "general", "response_length": 1133}
+{"timestamp": "2026-06-30T14:25:29.546868", "session_id": "e890563c-f411-4820-a3f9-52497e986b32", "portal_id": "portal_a", "input": "how to cash dispence", "intent": "unknown", "response_length": 1133}

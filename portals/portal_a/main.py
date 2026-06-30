@@ -10,11 +10,13 @@ from collections import defaultdict, deque
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
+from fastapi.responses import StreamingResponse
+import json
 from pydantic import BaseModel
 from typing import Optional
 
 from packages.shared.types import OrchestratorState, ChatMessage, MessageRole, IntentType
-from packages.ai_layer.orchestrator import run_orchestrator
+from packages.ai_layer.orchestrator import run_orchestrator_stream
 from services.cache.l2_store import stats as l2_stats, invalidate_version
 from services.cache.warmer import warm
 
@@ -84,14 +86,77 @@ async def root():
         return HTMLResponse(content=f.read())
 
 
-@app.post("/chat", response_model=ChatResponse)
+# @app.post("/chat", response_model=ChatResponse)
+# async def chat(req: ChatRequest, request: Request):
+#     if not req.message or not req.message.strip():
+#         raise HTTPException(status_code=400, detail="Message cannot be empty.")
+
+#     client_ip = request.client.host if request.client else "unknown"
+#     if not _check_rate_limit(client_ip):
+#         raise HTTPException(status_code=429, detail="Too many requests. Please slow down and try again shortly.")
+
+#     session_id = req.session_id or str(uuid.uuid4())
+#     history = _sessions.get(session_id, [])
+
+#     state = OrchestratorState(
+#         messages=history.copy(),
+#         current_input=req.message.strip(),
+#         portal_id=PORTAL_ID,
+#         session_id=session_id,
+#         user_role=req.user_role or "user",
+#         frontend_version=req.frontend_version or "v1",
+#     )
+
+#     try:
+#         result = run_orchestrator(state)
+#     except Exception as e:
+#         logger.error("Orchestrator failed: %s", e, exc_info=True)
+#         raise HTTPException(status_code=503, detail="The assistant is temporarily unavailable. Please try again shortly.")
+
+#     guardrail_blocked = bool(result.guardrail_result and not result.guardrail_result.passed)
+
+#     if result.final_response and not guardrail_blocked:
+#         history.append(ChatMessage(role=MessageRole.USER, content=req.message.strip(), portal_id=PORTAL_ID, session_id=session_id))
+#         history.append(ChatMessage(role=MessageRole.ASSISTANT, content=result.final_response.content, portal_id=PORTAL_ID, session_id=session_id))
+#         # Keep last 30 messages (15 turns) — context_manager handles deeper trimming at LLM call time
+#         _sessions[session_id] = history[-30:]
+
+#     response_text = result.final_response.content if result.final_response else "I'm sorry, I couldn't process that."
+#     intent = result.final_response.intent if result.final_response else IntentType.UNKNOWN
+#     is_multi = result.final_response.is_multi_query if result.final_response else False
+#     sub_responses = result.final_response.sub_responses if result.final_response else []
+
+#     escalation_resp = None
+#     if result.escalation and result.escalation.triggered:
+#         escalation_resp = EscalationResponse(
+#             triggered=True,
+#             ticket_id=result.escalation.ticket_id,
+#             reason=result.escalation.reason,
+#         )
+
+#     return ChatResponse(
+#         session_id=session_id,
+#         response=response_text,
+#         intent=intent.value if hasattr(intent, "value") else str(intent),
+#         is_multi_query=is_multi,
+#         escalation=escalation_resp,
+#         sub_responses=sub_responses,
+#         guardrail_blocked=guardrail_blocked,
+#         l1_hit=result.l1_hit,
+#         l2_hit=result.l2_hit,
+#         frontend_version=req.frontend_version or "v1",
+#     )
+
+
+
+@app.post("/chat")
 async def chat(req: ChatRequest, request: Request):
     if not req.message or not req.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty.")
 
     client_ip = request.client.host if request.client else "unknown"
     if not _check_rate_limit(client_ip):
-        raise HTTPException(status_code=429, detail="Too many requests. Please slow down and try again shortly.")
+        raise HTTPException(status_code=429, detail="Too many requests.")
 
     session_id = req.session_id or str(uuid.uuid4())
     history = _sessions.get(session_id, [])
@@ -105,46 +170,12 @@ async def chat(req: ChatRequest, request: Request):
         frontend_version=req.frontend_version or "v1",
     )
 
-    try:
-        result = run_orchestrator(state)
-    except Exception as e:
-        logger.error("Orchestrator failed: %s", e, exc_info=True)
-        raise HTTPException(status_code=503, detail="The assistant is temporarily unavailable. Please try again shortly.")
+    def generate():
+        for event in run_orchestrator_stream(state):
+            yield f"data: {event}\n\n"
+        yield "data: [DONE]\n\n"
 
-    guardrail_blocked = bool(result.guardrail_result and not result.guardrail_result.passed)
-
-    if result.final_response and not guardrail_blocked:
-        history.append(ChatMessage(role=MessageRole.USER, content=req.message.strip(), portal_id=PORTAL_ID, session_id=session_id))
-        history.append(ChatMessage(role=MessageRole.ASSISTANT, content=result.final_response.content, portal_id=PORTAL_ID, session_id=session_id))
-        # Keep last 30 messages (15 turns) — context_manager handles deeper trimming at LLM call time
-        _sessions[session_id] = history[-30:]
-
-    response_text = result.final_response.content if result.final_response else "I'm sorry, I couldn't process that."
-    intent = result.final_response.intent if result.final_response else IntentType.UNKNOWN
-    is_multi = result.final_response.is_multi_query if result.final_response else False
-    sub_responses = result.final_response.sub_responses if result.final_response else []
-
-    escalation_resp = None
-    if result.escalation and result.escalation.triggered:
-        escalation_resp = EscalationResponse(
-            triggered=True,
-            ticket_id=result.escalation.ticket_id,
-            reason=result.escalation.reason,
-        )
-
-    return ChatResponse(
-        session_id=session_id,
-        response=response_text,
-        intent=intent.value if hasattr(intent, "value") else str(intent),
-        is_multi_query=is_multi,
-        escalation=escalation_resp,
-        sub_responses=sub_responses,
-        guardrail_blocked=guardrail_blocked,
-        l1_hit=result.l1_hit,
-        l2_hit=result.l2_hit,
-        frontend_version=req.frontend_version or "v1",
-    )
-
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 @app.get("/cache/stats")
 async def get_cache_stats(frontend_version: str = "v1"):
@@ -193,7 +224,7 @@ async def chat_debug(req: ChatRequest):
         frontend_version="v1",
     )
     try:
-        result = run_orchestrator(state)
+        result = run_orchestrator_stream(state)
         return {
             "response": result.final_response.content if result.final_response else None,
             "errors": result.metadata.get("errors", []),

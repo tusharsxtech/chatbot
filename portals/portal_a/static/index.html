@@ -40,38 +40,60 @@ function sendMessage() {
 
   appendMessage('You', text);
   document.getElementById('input').value = '';
-  appendMessage('agent_a', '...');
+  appendMessage('agent_a', '');
+
+  var fullText = '';
 
   fetch('/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message: text, session_id: sessionId })
   })
-  .then(function(r) { return r.json(); })
-  .then(function(data) {
-    removeLastMessage();
+  .then(function(response) {
+    var reader = response.body.getReader();
+    var decoder = new TextDecoder();
+    var buffer = '';
 
-    var response = data.response || 'Sorry, I could not process that request.';
-    appendMessage('agent_a', response);
+    function readChunk() {
+      return reader.read().then(function(result) {
+        if (result.done) return;
 
-    if (data.escalation && data.escalation.triggered) {
-      appendMessage('System', 'Escalation ticket raised: ' + data.escalation.ticket_id);
-    }
+        buffer += decoder.decode(result.value, { stream: true });
+        var parts = buffer.split('\n\n');
+        buffer = parts.pop();
 
-    if (data.sub_responses && data.sub_responses.length > 0) {
-      data.sub_responses.forEach(function(sub) {
-        appendMessage('agent_a', sub);
+        parts.forEach(function(line) {
+          if (!line.startsWith('data:')) return;
+          var dataStr = line.slice(5).trim();
+          if (dataStr === '[DONE]') return;
+
+          try {
+            var event = JSON.parse(dataStr);
+
+            if (event.type === 'metadata') {
+              sessionId = event.session_id || sessionId;
+              document.getElementById('intent').textContent = event.intent || '—';
+              document.getElementById('session').textContent = sessionId ? sessionId.slice(0, 8) : '—';
+            } else if (event.type === 'chunk') {
+              fullText += event.text;
+              updateLastMessage('agent_a', fullText);
+            } else if (event.type === 'blocked') {
+              fullText = event.message;
+              updateLastMessage('agent_a', fullText);
+            }
+          } catch (e) {
+            console.error('Failed to parse SSE event:', dataStr, e);
+          }
+        });
+
+        return readChunk();
       });
     }
 
-    sessionId = data.session_id;
-    document.getElementById('intent').textContent = data.intent || '—';
-    document.getElementById('multi').textContent = data.is_multi_query ? 'yes' : 'no';
-    document.getElementById('session').textContent = data.session_id ? data.session_id.slice(0, 8) : '—';
+    return readChunk();
   })
   .catch(function(err) {
-    removeLastMessage();
-    appendMessage('Error', err.message || 'Unknown error');
+    updateLastMessage('Error', err.message || 'Unknown error');
   });
 }
 
@@ -84,9 +106,12 @@ function appendMessage(sender, text) {
   box.scrollTop = box.scrollHeight;
 }
 
-function removeLastMessage() {
+function updateLastMessage(sender, text) {
   var box = document.getElementById('messages');
-  if (box.lastChild) box.removeChild(box.lastChild);
+  var p = box.lastChild;
+  var safeText = (text || '').toString().replace(/\n/g, '<br>');
+  p.innerHTML = '<b>' + sender + ':</b> ' + safeText;
+  box.scrollTop = box.scrollHeight;
 }
 
 function clearChat() {

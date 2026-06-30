@@ -1,5 +1,7 @@
 from functools import lru_cache
-from typing import List
+from typing import Iterator, List, Union
+
+from torch import chunk
 
 from openai import OpenAI
 
@@ -25,7 +27,7 @@ class LLMClient:
         temperature: float = 0.1,
         max_tokens: int = 1024,
         stream: bool = False,
-    ) -> str:
+    ) -> Union[str, Iterator[str]]:
         response = self.client.chat.completions.create(
             model=self.model,
             messages=messages,
@@ -34,7 +36,12 @@ class LLMClient:
             stream=stream,
         )
         if stream:
-            return response
+            def _stream_chunks() -> Iterator[str]:
+                for chunk in response:
+                    delta = chunk.choices[0].delta.content
+                    if delta:
+                        yield delta
+            return _stream_chunks()
         content = response.choices[0].message.content or ""
         logger.info(
             "llm_response",

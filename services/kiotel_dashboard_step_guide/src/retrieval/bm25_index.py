@@ -38,6 +38,8 @@ class BM25Index:
         self.bm25: Optional[BM25Okapi] = None
         self.chunks: List[dict] = []
         self.index_path = Path(get_settings().bm25_index_path)
+        
+        self._load() 
 
     def build(self, chunks: List[Chunk]) -> None:
         self.chunks = [

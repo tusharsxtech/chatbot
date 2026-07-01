@@ -36,11 +36,16 @@ class LLMClient:
         if stream:
             def _stream_chunks() -> Iterator[str]:
                 for chunk in response:
-                    if not chunk.choices:
-                        continue
-                    delta = chunk.choices[0].delta.content
-                    if delta:
-                        yield delta
+                    try:
+                        if not chunk.choices:
+                            continue
+                        delta = chunk.choices[0].delta
+                        if delta is None or delta.content is None:
+                            continue
+                        yield delta.content
+                    except Exception:
+                        logger.exception("llm_stream_chunk_error", chunk=chunk)
+                        break
             return _stream_chunks()
         content = response.choices[0].message.content or ""
         logger.info(

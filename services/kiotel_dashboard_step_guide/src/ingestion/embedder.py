@@ -9,6 +9,9 @@ from configs.logging_config import get_logger
 
 logger = get_logger(__name__)
 
+_query_embed_cache: dict[str, list[float]] = {}
+_QUERY_CACHE_MAX = 512
+
 
 class BGEEmbedder:
     _instance: "BGEEmbedder | None" = None
@@ -33,12 +36,15 @@ class BGEEmbedder:
         return embeddings.tolist()
 
     def embed_query(self, text: str) -> List[float]:
+        if text in _query_embed_cache:
+            return _query_embed_cache[text]
         prefixed = f"{self.query_prefix}{text}"
-        embedding = self.model.encode(
-            [prefixed],
-            normalize_embeddings=True,
-        )
-        return embedding[0].tolist()
+        embedding = self.model.encode([prefixed], normalize_embeddings=True)
+        result = embedding[0].tolist()
+        if len(_query_embed_cache) >= _QUERY_CACHE_MAX:
+            _query_embed_cache.pop(next(iter(_query_embed_cache)))
+        _query_embed_cache[text] = result
+        return result
 
     def embed_queries(self, texts: List[str]) -> List[List[float]]:
         prefixed = [f"{self.query_prefix}{t}" for t in texts]

@@ -1,9 +1,13 @@
 import sys
 sys.path.insert(0, "/app")
 
+import asyncio
 import json
 import logging
-import concurrent.futures
+import os
+import time
+import functools
+import httpx
 from langgraph.graph import StateGraph, END
 
 from packages.shared.types import (
@@ -14,7 +18,7 @@ from packages.shared.types import (
 from packages.shared.utils import split_multi_query, detect_escalation_triggers
 from packages.ai_layer.guardrails import check_input, check_output
 from packages.ai_layer.gateway import (
-    call_llm, call_llm_for_rewrite,
+    call_llm, call_llm_stream, call_llm_for_rewrite,
     call_llm_for_faithfulness, call_llm_for_classify_and_route,
     LLMServiceError,
 )
@@ -27,6 +31,41 @@ from services.cache import l1_store, l2_store
 
 logger = logging.getLogger(__name__)
 
+_RAG_BASE_URL = os.getenv("KIOTEL_RAG_URL", "http://localhost:8001")
+_RAG_TIMEOUT = float(os.getenv("KIOTEL_RAG_TIMEOUT", "180.0"))
+
+
+async def _stream_rag(question: str, chat_history: list | None = None):
+    """Async generator — yields (token: str|None, meta: dict|None) from the RAG service SSE stream."""
+    payload: dict = {"question": question}
+    if chat_history:
+        payload["chat_history"] = chat_history
+    try:
+        async with httpx.AsyncClient(timeout=_RAG_TIMEOUT) as client:
+            async with client.stream("POST", f"{_RAG_BASE_URL}/query", json=payload) as resp:
+                resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    raw = line[len("data:"):].strip()
+                    if raw == "[DONE]":
+                        return
+                    try:
+                        event = json.loads(raw)
+                    except json.JSONDecodeError:
+                        continue
+                    if event["type"] == "chunk":
+                        yield event.get("text", ""), None
+                    elif event["type"] == "metadata":
+                        yield None, event
+                    elif event["type"] == "blocked":
+                        yield None, {"blocked": True, "message": event.get("message", "")}
+                        return
+    except Exception as e:
+        logger.error("_stream_rag failed: %s", e)
+        yield None, {"error": str(e)}
+
+
 load_all_tools()
 
 try:
@@ -38,14 +77,12 @@ except Exception:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-import time
-import functools
 
 def timed_node(fn):
     @functools.wraps(fn)
-    def wrapper(data: dict) -> dict:
+    async def wrapper(data: dict) -> dict:
         t0 = time.perf_counter()
-        result = fn(data)
+        result = await fn(data)
         logger.info("%s took %.0fms", fn.__name__, (time.perf_counter() - t0) * 1000)
         return result
     return wrapper
@@ -73,7 +110,7 @@ def _build_tool_context(tool_results: dict) -> str:
 # Graph nodes
 # ---------------------------------------------------------------------------
 @timed_node
-def node_guardrail_input(data: dict) -> dict:
+async def node_guardrail_input(data: dict) -> dict:
     state: OrchestratorState = data["state"]
     try:
         result = check_input(state.current_input, portal_id=state.portal_id, user_role=state.user_role)
@@ -87,32 +124,20 @@ def node_guardrail_input(data: dict) -> dict:
 
 
 @timed_node
-def node_query_rewrite(data: dict) -> dict:
+async def node_query_rewrite(data: dict) -> dict:
+    # Only sets l1_context for downstream nodes — LLM rewrite removed (was adding 20-25s per turn).
+    # classify_and_route already receives l1_context so routing quality is unchanged.
     state: OrchestratorState = data["state"]
     if not state.guardrail_result or not state.guardrail_result.passed:
         return {"state": state}
     try:
-        l1_ctx = l1_store.summary(state.session_id, state.portal_id)
-        state.metadata["l1_context"] = l1_ctx
-
-        if detect_escalation_triggers(state.sanitized_input):
-            return {"state": state}
-        if not l1_ctx or not l1_ctx.strip():
-            return {"state": state}
-
-        original_input = state.sanitized_input
-        rewritten = call_llm_for_rewrite(original_input, l1_ctx)
-        rewritten = (rewritten or "").strip()
-        if rewritten and rewritten != original_input:
-            state.metadata["original_input"] = original_input
-            state.sanitized_input = rewritten
-            state.metadata["query_rewrite_applied"] = True
+        state.metadata["l1_context"] = l1_store.summary(state.session_id, state.portal_id)
     except Exception as e:
         _record_error(state, "query_rewrite", e)
     return {"state": state}
 
 @timed_node
-def node_l1_check(data: dict) -> dict:
+async def node_l1_check(data: dict) -> dict:
     state: OrchestratorState = data["state"]
     if not state.guardrail_result or not state.guardrail_result.passed:
         return {"state": state}
@@ -130,7 +155,7 @@ def node_l1_check(data: dict) -> dict:
     return {"state": state}
 
 @timed_node
-def node_l2_check(data: dict) -> dict:
+async def node_l2_check(data: dict) -> dict:
     state: OrchestratorState = data["state"]
     if state.l1_hit:
         return {"state": state}
@@ -138,7 +163,9 @@ def node_l2_check(data: dict) -> dict:
         if "l1_context" not in state.metadata:
             state.metadata["l1_context"] = l1_store.summary(state.session_id, state.portal_id)
         intent_guess = state.intent.primary_intent.value if state.intent else "general"
-        hit = l2_store.get(state.sanitized_input, state.portal_id, state.frontend_version, intent_guess)
+        hit = await asyncio.to_thread(
+            l2_store.get, state.sanitized_input, state.portal_id, state.frontend_version, intent_guess
+        )
         if hit:
             state.l2_hit = True
             state.final_response = AIResponse(
@@ -152,7 +179,7 @@ def node_l2_check(data: dict) -> dict:
     return {"state": state}
 
 @timed_node
-def node_detect_intent(data: dict) -> dict:
+async def node_detect_intent(data: dict) -> dict:
     state: OrchestratorState = data["state"]
     if not state.guardrail_result or not state.guardrail_result.passed:
         return {"state": state}
@@ -173,7 +200,7 @@ def node_detect_intent(data: dict) -> dict:
 
 
 @timed_node
-def node_tool_router(data: dict) -> dict:
+async def node_tool_router(data: dict) -> dict:
     from packages.ai_layer.tool_registry import registry
 
     state: OrchestratorState = data["state"]
@@ -194,11 +221,9 @@ def node_tool_router(data: dict) -> dict:
         for m in state.messages[-6:]
     ]
 
-    rag_tool = registry.get("kiotel_dashboard_rag")
-
-    def run_classify():
+    async def run_classify():
         try:
-            return call_llm_for_classify_and_route(
+            return await call_llm_for_classify_and_route(
                 state.sanitized_input, services_schema, history_context=l1_ctx
             )
         except Exception as e:
@@ -211,25 +236,7 @@ def node_tool_router(data: dict) -> dict:
                 "reasoning": f"Classifier error: {e}",
             }
 
-    def run_rag_speculative():
-        if not rag_tool or not rag_tool.enabled:
-            return None
-        try:
-            return rag_tool.handler({
-                "question": state.sanitized_input,
-                "chat_history": chat_history or None,
-            })
-        except Exception as e:
-            logger.warning("Speculative RAG call failed: %s", e)
-            return {"found": False, "error": str(e)}
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-        classify_future = executor.submit(run_classify)
-        rag_future = executor.submit(run_rag_speculative)
-
-        decision = classify_future.result()
-        speculative_rag = rag_future.result()
-
+    decision = await run_classify()
     logger.info("classify_and_route: %s", decision)
 
     query_type = decision["query_type"]
@@ -261,42 +268,33 @@ def node_tool_router(data: dict) -> dict:
         state.metadata["tool_results"] = {}
         return {"state": state}
 
-    tool_results = {}
-    rag_confirmed = "kiotel_dashboard_rag" in decision["services"]
+    # RAG is NOT pre-fetched here — streaming path pipes it directly in run_orchestrator_stream,
+    # non-streaming path fetches it in node_generate_response.
+    non_rag_services = [s for s in decision["services"] if s != "kiotel_dashboard_rag"]
 
-    if rag_confirmed and speculative_rag is not None:
-        tool_results["kiotel_dashboard_rag"] = speculative_rag
-        logger.info("speculative RAG used: found=%s", speculative_rag.get("found"))
-    elif rag_confirmed and speculative_rag is None:
-        if rag_tool and rag_tool.enabled:
-            try:
-                tool_results["kiotel_dashboard_rag"] = rag_tool.handler({
-                    "question": state.sanitized_input,
-                    "chat_history": chat_history or None,
-                })
-            except Exception as e:
-                tool_results["kiotel_dashboard_rag"] = {"found": False, "error": str(e)}
-
-    for service_name in decision["services"]:
-        if service_name == "kiotel_dashboard_rag":
-            continue
+    async def _call_service(service_name: str):
         tool = registry.get(service_name)
         if not tool or not tool.enabled:
-            tool_results[service_name] = {"error": f"Service '{service_name}' unavailable."}
-            continue
+            return service_name, {"error": f"Service '{service_name}' unavailable."}
         try:
             inputs = {"question": state.sanitized_input, "chat_history": chat_history or None}
-            tool_results[service_name] = tool.handler(inputs)
-            logger.info("service %s result found=%s", service_name, tool_results[service_name].get("found"))
+            result = await asyncio.to_thread(tool.handler, inputs)
+            logger.info("service %s result found=%s", service_name, result.get("found"))
+            return service_name, result
         except Exception as e:
             _record_error(state, f"tool_router.execute.{service_name}", e)
-            tool_results[service_name] = {"error": str(e)}
+            return service_name, {"error": str(e)}
+
+    if non_rag_services:
+        service_results = await asyncio.gather(*[_call_service(s) for s in non_rag_services])
+        for name, result in service_results:
+            tool_results[name] = result
 
     state.metadata["tool_results"] = tool_results
     return {"state": state}
 
 @timed_node
-def node_handle_escalation(data: dict) -> dict:
+async def node_handle_escalation(data: dict) -> dict:
     state: OrchestratorState = data["state"]
     if not state.intent or state.intent.primary_intent != IntentType.ESCALATION:
         return {"state": state}
@@ -309,56 +307,62 @@ def node_handle_escalation(data: dict) -> dict:
     return {"state": state}
 
 @timed_node
-def node_handle_multi_query(data: dict) -> dict:
+async def node_handle_multi_query(data: dict) -> dict:
     state: OrchestratorState = data["state"]
     if not state.intent or not state.intent.is_multi_query:
         return {"state": state}
+
     l1_ctx = state.metadata.get("l1_context", "")
-    sub_responses = []
     from packages.ai_layer.tool_registry import registry
     services_schema = [{"name": t.name, "description": t.description} for t in registry.all_tools(state.portal_id)]
+    chat_history = [
+        {"role": m.role.value if hasattr(m.role, "value") else m.role, "content": m.content}
+        for m in state.messages[-6:]
+    ]
 
-    for sub_q in state.intent.sub_queries:
+    async def _process_sub_query(sub_q: str) -> str:
         try:
-            decision = call_llm_for_classify_and_route(sub_q, services_schema, history_context=l1_ctx)
+            decision = await call_llm_for_classify_and_route(sub_q, services_schema, history_context=l1_ctx)
             sub_tools = {}
-
             if decision["query_type"] not in ("greeting", "chit_chat") and decision["services"]:
-                chat_history = [
-                    {"role": m.role.value if hasattr(m.role, "value") else m.role, "content": m.content}
-                    for m in state.messages[-6:]
-                ]
-                for tool_name in decision["services"]:
+                async def _call_sub_tool(tool_name: str):
                     tool = registry.get(tool_name)
                     if tool and tool.enabled:
                         try:
-                            sub_tools[tool_name] = tool.handler({"question": sub_q, "chat_history": chat_history or None})
+                            return tool_name, await asyncio.to_thread(
+                                tool.handler, {"question": sub_q, "chat_history": chat_history or None}
+                            )
                         except Exception as te:
-                            sub_tools[tool_name] = {"error": str(te)}
+                            return tool_name, {"error": str(te)}
+                    return tool_name, None
+
+                tool_results = await asyncio.gather(*[_call_sub_tool(t) for t in decision["services"]])
+                sub_tools = {name: res for name, res in tool_results if res is not None}
 
             rag = _rag_tool_result(sub_tools)
             if rag:
-                sub_responses.append(f"Q: {sub_q}\n{rag['answer']}")
-                continue
-
+                return rag["answer"]
             tool_context = _build_tool_context(sub_tools)
             ctx = (f"\n\nSession context:\n{l1_ctx}" if l1_ctx else "") + tool_context
-            response = call_llm(build_prompt(state.portal_id) + ctx, state.messages, sub_q)
-            sub_responses.append(f"Q: {sub_q}\n{response}")
+            response = await call_llm(build_prompt(state.portal_id) + ctx, state.messages, sub_q)
+            return response
         except Exception as e:
-            _record_error(state, f"handle_multi_query:{sub_q}", e)
-            sub_responses.append(f"Q: {sub_q}\nI couldn't generate an answer for this part due to a temporary issue. Please try asking it again.")
+            logger.error("handle_multi_query sub_q='%s' failed: %s", sub_q, e, exc_info=True)
+            return "I couldn't generate an answer for this part due to a temporary issue. Please try asking it again."
+
+    sub_queries = state.intent.sub_queries
+    sub_answers = list(await asyncio.gather(*[_process_sub_query(sq) for sq in sub_queries]))
 
     state.final_response = AIResponse(
-        content="\n\n---\n\n".join(sub_responses),
+        content="\n\n".join(sub_answers),
         intent=IntentType.MULTI_QUERY,
-        sub_responses=sub_responses,
+        sub_responses=sub_answers,
         is_multi_query=True,
     )
     return {"state": state}
 
 @timed_node
-def node_generate_response(data: dict) -> dict:
+async def node_generate_response(data: dict) -> dict:
     state: OrchestratorState = data["state"]
     if state.final_response:
         return {"state": state}
@@ -373,7 +377,7 @@ def node_generate_response(data: dict) -> dict:
     if state.escalation and state.escalation.triggered:
         ticket_msg = f"\n\nEscalation ticket created: {state.escalation.ticket_id}. Our team will reach out shortly."
         try:
-            response = call_llm(
+            response = await call_llm(
                 build_prompt(state.portal_id), state.messages,
                 f"User needs urgent help: {state.escalation.reason}. Be empathetic, tell them a ticket has been raised. Input: {state.sanitized_input}",
             )
@@ -384,6 +388,27 @@ def node_generate_response(data: dict) -> dict:
         return {"state": state}
 
     tool_results = state.metadata.get("tool_results", {})
+
+    # Fetch RAG here for the non-streaming path (streaming path handles it in run_orchestrator_stream)
+    if not _rag_tool_result(tool_results):
+        selected = state.metadata.get("tool_route", {}).get("selected_tools", [])
+        if "kiotel_dashboard_rag" in selected:
+            from packages.ai_layer.tool_registry import registry
+            rag_tool = registry.get("kiotel_dashboard_rag")
+            if rag_tool and rag_tool.enabled:
+                chat_history_for_rag = [
+                    {"role": m.role.value if hasattr(m.role, "value") else m.role, "content": m.content}
+                    for m in state.messages[-6:]
+                ]
+                try:
+                    result = await asyncio.to_thread(
+                        rag_tool.handler,
+                        {"question": state.sanitized_input, "chat_history": chat_history_for_rag or None},
+                    )
+                    tool_results["kiotel_dashboard_rag"] = result
+                    state.metadata["tool_results"] = tool_results
+                except Exception as e:
+                    _record_error(state, "generate_response.rag_fetch", e)
 
     rag = _rag_tool_result(tool_results)
     if rag:
@@ -404,7 +429,7 @@ def node_generate_response(data: dict) -> dict:
     system_prompt = build_prompt(state.portal_id) + ctx
     intent = state.intent.primary_intent if state.intent else IntentType.GENERAL
 
-    safe_messages, conv_summary = get_safe_messages_for_llm(
+    safe_messages, conv_summary = await get_safe_messages_for_llm(
         state.messages, system_prompt, call_llm, state.session_id
     )
     if conv_summary:
@@ -413,7 +438,7 @@ def node_generate_response(data: dict) -> dict:
         logger.warning("Context managed at %.0f%% — using summarized history", pct * 100)
 
     try:
-        response_text = call_llm(system_prompt, safe_messages, state.sanitized_input)
+        response_text = await call_llm(system_prompt, safe_messages, state.sanitized_input)
     except Exception as e:
         _record_error(state, "generate_response", e)
         response_text = "I'm having trouble generating a response right now. Please try again in a moment, or let me know if you'd like to be connected with our support team."
@@ -462,7 +487,7 @@ def _is_cacheable_response(response_text: str, tool_results: dict) -> bool:
 
 
 @timed_node
-def node_l2_write(data: dict) -> dict:
+async def node_l2_write(data: dict) -> dict:
     state: OrchestratorState = data["state"]
     if not state.final_response or state.l1_hit or state.l2_hit:
         return {"state": state}
@@ -480,7 +505,9 @@ def node_l2_write(data: dict) -> dict:
         return {"state": state}
 
     try:
-        l2_store.set(state.sanitized_input, response_text, state.portal_id, state.frontend_version, intent.value)
+        await asyncio.to_thread(
+            l2_store.set, state.sanitized_input, response_text, state.portal_id, state.frontend_version, intent.value
+        )
         l1_store.set(state.session_id, state.portal_id, state.sanitized_input, response_text, intent.value)
         logger.info("Cached response for query: %s", state.sanitized_input[:50])
     except Exception as e:
@@ -488,7 +515,7 @@ def node_l2_write(data: dict) -> dict:
     return {"state": state}
 
 @timed_node
-def node_log(data: dict) -> dict:
+async def node_log(data: dict) -> dict:
     state: OrchestratorState = data["state"]
     try:
         log_interaction(state)
@@ -605,34 +632,155 @@ def get_graph():
     return _compiled_graph
 
 
-def run_orchestrator(state: OrchestratorState) -> OrchestratorState:
+async def run_orchestrator(state: OrchestratorState) -> OrchestratorState:
     t0 = time.perf_counter()
     graph = get_graph()
     config = {"configurable": {"thread_id": f"{state.portal_id}:{state.session_id}"}}
-    result = graph.invoke({"state": state}, config=config)
+    result = await graph.ainvoke({"state": state}, config=config)
     logger.info("run_orchestrator TOTAL took %.0fms", (time.perf_counter() - t0) * 1000)
     return result["state"]
 
 
-def run_orchestrator_stream(state: OrchestratorState):
+async def run_orchestrator_stream(state: OrchestratorState):
+    """
+    Async generator — true token streaming.
+
+    Phase 1: run the graph up to (but not including) generate_response.
+             This covers guardrail → rewrite → cache checks → intent → tool_router.
+             Metadata is yielded as soon as routing is done.
+    Phase 2: stream the final LLM response token-by-token (or yield cached/RAG answer).
+    Phase 3: fire-and-forget post-processing (l2_write + log).
+    """
     t0 = time.perf_counter()
     graph = get_graph()
     config = {"configurable": {"thread_id": f"{state.portal_id}:{state.session_id}"}}
-    result = graph.invoke({"state": state}, config=config)
-    final_state = result["state"]
-    logger.info("run_orchestrator TOTAL took %.0fms", (time.perf_counter() - t0) * 1000)
 
-    response_text = final_state.final_response.content if final_state.final_response else "I'm sorry, I couldn't process that."
-    guardrail_blocked = bool(final_state.guardrail_result and not final_state.guardrail_result.passed)
+    # ── Phase 1: routing ───────────────────────────────────────────────────────
+    partial_result = await graph.ainvoke(
+        {"state": state},
+        config=config,
+        interrupt_before=["generate_response"],
+    )
+    ps: OrchestratorState = partial_result["state"]
 
+    guardrail_blocked = bool(ps.guardrail_result and not ps.guardrail_result.passed)
     yield json.dumps({
         "type": "metadata",
         "session_id": state.session_id,
         "guardrail_blocked": guardrail_blocked,
-        "l1_hit": final_state.l1_hit,
-        "l2_hit": final_state.l2_hit,
-        "intent": final_state.final_response.intent.value if final_state.final_response and hasattr(final_state.final_response.intent, "value") else "unknown",
+        "l1_hit": ps.l1_hit,
+        "l2_hit": ps.l2_hit,
+        "intent": ps.intent.primary_intent.value if ps.intent else "unknown",
     })
 
-    for word in response_text.split(" "):
-        yield json.dumps({"type": "chunk", "text": word + " "})
+    # ── Phase 2: generate / stream ─────────────────────────────────────────────
+    tool_results = ps.metadata.get("tool_results", {})
+    full_response: str = ""
+    final_intent = ps.intent.primary_intent if ps.intent else IntentType.GENERAL
+    final_metadata: dict = ps.metadata.get("tool_route", {})
+
+    if ps.final_response:
+        # l1 / l2 cache hit — already have the answer, stream word-by-word
+        full_response = ps.final_response.content
+        for word in full_response.split(" "):
+            yield json.dumps({"type": "chunk", "text": word + " "})
+
+    elif guardrail_blocked:
+        reason = ps.guardrail_result.reason if ps.guardrail_result else "Invalid input."
+        full_response = f"I'm unable to process that request. {reason}"
+        yield json.dumps({"type": "chunk", "text": full_response})
+        final_intent = IntentType.UNKNOWN
+
+    elif ps.escalation and ps.escalation.triggered:
+        ticket_msg = f"\n\nEscalation ticket created: {ps.escalation.ticket_id}. Our team will reach out shortly."
+        prompt = f"User needs urgent help: {ps.escalation.reason}. Be empathetic, tell them a ticket has been raised. Input: {ps.sanitized_input}"
+        try:
+            parts = []
+            async for token in call_llm_stream(build_prompt(ps.portal_id), ps.messages, prompt):
+                parts.append(token)
+                yield json.dumps({"type": "chunk", "text": token})
+            full_response = "".join(parts) + ticket_msg
+        except Exception:
+            full_response = "I understand this is urgent, and I've raised a ticket for our team." + ticket_msg
+            yield json.dumps({"type": "chunk", "text": full_response})
+        final_intent = IntentType.ESCALATION
+
+    else:
+        selected_tools = ps.metadata.get("tool_route", {}).get("selected_tools", [])
+        rag_selected = "kiotel_dashboard_rag" in selected_tools
+
+        if rag_selected:
+            # True RAG streaming — pipe tokens directly from RAG service as they arrive
+            chat_history_for_rag = [
+                {"role": m.role.value if hasattr(m.role, "value") else m.role, "content": m.content}
+                for m in ps.messages[-6:]
+            ]
+            parts = []
+            try:
+                async for token, meta in _stream_rag(ps.sanitized_input, chat_history_for_rag or None):
+                    if token:
+                        parts.append(token)
+                        yield json.dumps({"type": "chunk", "text": token})
+                    elif meta:
+                        if meta.get("blocked") or meta.get("error"):
+                            break
+                        final_metadata.update({
+                            "rag_query_used": meta.get("query_used"),
+                            "rag_sources": meta.get("source_documents", []),
+                        })
+            except Exception as e:
+                logger.error("RAG streaming failed: %s", e)
+            if not parts:
+                fallback = "I'm having trouble retrieving that information right now. Please try again."
+                parts = [fallback]
+                yield json.dumps({"type": "chunk", "text": fallback})
+            full_response = "".join(parts)
+            final_intent = ps.intent.primary_intent if ps.intent else IntentType.GENERAL
+
+        else:
+            # No RAG — stream LLM generation token by token
+            l1_ctx = ps.metadata.get("l1_context", "")
+            tool_context = _build_tool_context(tool_results)
+            ctx = (f"\n\nSession context:\n{l1_ctx}" if l1_ctx else "") + tool_context
+            system_prompt = build_prompt(ps.portal_id) + ctx
+
+            safe_messages, conv_summary = await get_safe_messages_for_llm(
+                ps.messages, system_prompt, call_llm, ps.session_id
+            )
+            if conv_summary:
+                system_prompt += f"\n\n--- CONVERSATION SUMMARY (earlier context) ---\n{conv_summary}\n---"
+
+            parts = []
+            try:
+                async for token in call_llm_stream(system_prompt, safe_messages, ps.sanitized_input):
+                    parts.append(token)
+                    yield json.dumps({"type": "chunk", "text": token})
+            except Exception as e:
+                logger.error("Streaming generation failed: %s", e)
+                fallback = "I'm having trouble generating a response right now. Please try again."
+                parts = [fallback]
+                yield json.dumps({"type": "chunk", "text": fallback})
+            full_response = "".join(parts)
+
+    # ── Phase 3: post-process (cache write + log) in background ───────────────
+    ps.final_response = AIResponse(
+        content=full_response,
+        intent=final_intent,
+        metadata=final_metadata,
+    )
+
+    async def _post_process():
+        try:
+            if not ps.l1_hit and not ps.l2_hit and _is_cacheable_response(full_response, tool_results):
+                if final_intent in {IntentType.GENERAL, IntentType.SERVICE_QUERY}:
+                    await asyncio.to_thread(
+                        l2_store.set, ps.sanitized_input, full_response,
+                        ps.portal_id, ps.frontend_version, final_intent.value,
+                    )
+                    l1_store.set(ps.session_id, ps.portal_id, ps.sanitized_input, full_response, final_intent.value)
+            log_interaction(ps)
+        except Exception as e:
+            logger.error("Post-process failed: %s", e)
+
+    asyncio.create_task(_post_process())
+    logger.info("run_orchestrator_stream TOTAL took %.0fms", (time.perf_counter() - t0) * 1000)

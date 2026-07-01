@@ -6,7 +6,7 @@ from configs.settings import get_settings
 from configs.logging_config import get_logger
 from src.retrieval.hybrid_retriever import HybridRetriever
 from src.generation.llm_client import get_llm_client
-from src.generation.prompts import build_rag_messages, build_condense_messages, format_context
+from src.generation.prompts import build_rag_messages, format_context
 from src.guardrails.guardrail import Guardrail, GuardrailResult
 
 logger = get_logger(__name__)
@@ -48,7 +48,9 @@ class RAGChain:
 
      standalone_query = question
      if chat_history and len(chat_history) >= 2:
-        standalone_query = self._condense_question(question, chat_history)
+        last_user = next((m["content"] for m in reversed(chat_history) if m.get("role") == "user"), "")
+        if last_user and last_user.lower().strip() != question.lower().strip():
+            standalone_query = f"{question} (context from previous turn: {last_user[:200]})"
 
      retrieved = self.retriever.retrieve(standalone_query)
 

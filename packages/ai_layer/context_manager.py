@@ -45,9 +45,9 @@ def needs_context_management(messages: list[ChatMessage], system_prompt: str = "
     return estimate_context_usage_pct(messages, system_prompt) >= 0.80
 
 
-def summarize_old_messages(
+async def summarize_old_messages(
     messages: list[ChatMessage],
-    call_llm_fn,  # callable: (system_prompt, messages, user_input) -> str
+    call_llm_fn,  # async callable: (system_prompt, messages, user_input) -> str
 ) -> str:
     """
     Summarize the older part of the conversation into a compact paragraph.
@@ -70,7 +70,7 @@ def summarize_old_messages(
     )
 
     try:
-        summary = call_llm_fn(summary_system, [], conversation_text)
+        summary = await call_llm_fn(summary_system, [], conversation_text)
         return summary.strip()
     except Exception as e:
         logger.error("Context summarization failed: %s", e)
@@ -78,7 +78,7 @@ def summarize_old_messages(
         return conversation_text[-500:]
 
 
-def manage_context(
+async def manage_context(
     messages: list[ChatMessage],
     system_prompt: str,
     call_llm_fn,
@@ -114,7 +114,7 @@ def manage_context(
     recent_messages = messages[-RECENT_MESSAGES_TO_KEEP:]
 
     # Summarize the old part
-    summary = summarize_old_messages(old_messages, call_llm_fn)
+    summary = await summarize_old_messages(old_messages, call_llm_fn)
 
     logger.info(
         "Context managed: summarized %d messages into %d chars, keeping %d recent",
@@ -124,7 +124,7 @@ def manage_context(
     return recent_messages, summary
 
 
-def get_safe_messages_for_llm(
+async def get_safe_messages_for_llm(
     messages: list[ChatMessage],
     system_prompt: str,
     call_llm_fn,
@@ -135,4 +135,4 @@ def get_safe_messages_for_llm(
     Returns (safe_messages, summary_context).
     The summary_context should be injected into the system prompt if non-empty.
     """
-    return manage_context(messages, system_prompt, call_llm_fn, session_id)
+    return await manage_context(messages, system_prompt, call_llm_fn, session_id)

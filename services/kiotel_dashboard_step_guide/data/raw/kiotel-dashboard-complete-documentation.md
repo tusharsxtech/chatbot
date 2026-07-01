@@ -1,39 +1,40 @@
-# Kiotel Dashboard — Complete Documentation
+# Kiotel Dashboard — Agent Documentation
 
-This single file contains the full Kiotel dashboard help documentation — both the **Agent**
-(front-desk operator) side and the **Admin** console — combined for convenience. It is written
-in plain language for non-technical users and a help chatbot, and it documents every page,
-every button (with its on-screen location), what each control does, when to use it, and how to
-recover from failure states.
+This file contains the Kiotel **Agent Dashboard** (front-desk operator) help documentation.
+It is written in plain language for non-technical users and a help chatbot, and it
+documents every agent-facing page, every button (with its on-screen location), what each
+control does, when to use it, and how to recover from failure states.
 
-It is organized into seven parts. Start with **Part 1 (Overview & Core Concepts)** — it explains
-the ideas every other part depends on (online/offline devices, the control/observer model, and
-the transaction-session gate).
+Admin Console configuration screens are not covered here — this document focuses only on
+what a front-desk **agent** sees and uses. Where agent behavior depends on something an
+admin configures elsewhere (e.g. transaction timeout length, device assignment, feature
+permissions), that dependency is mentioned briefly without documenting the admin UI itself.
 
-**Key mental model:** A front-desk agent signs in, selects one kiosk (device) to operate, and
-works it remotely. A kiosk can be operated by only one agent at a time; everyone else is an
-observer whose action buttons are blocked until they take or request control. Many guest-facing
-actions (scan, cash, key, print, ratings, photo, guest details, document signature) only work
-during an active transaction session. When an agent presses a button, the kiosk performs the
-action on its hardware and reports status back — so actions only work when the device is online
-and the agent has control. Admins do not pick a device — they configure the whole fleet, gated
-by a per-feature permission grid. When something does not work, the usual causes (in order) are:
-device offline, you are an observer (no control), no active transaction, or the page needs a
-refresh to re-sync.
+It is organized into five parts. Start with **Part 1 (Overview & Core Concepts)** — it
+explains the ideas every other part depends on (online/offline devices, the
+control/observer model, and the transaction-session gate).
 
-**Conventions:** on-screen labels and status words appear in "double quotes"; "Route/URL" lines
-give the page's address-bar path (useful for identifying a page); location notes ("top-right
-header", "card footer", and so on) tell you where on the screen to look.
+**Key mental model:** A front-desk agent signs in, selects one kiosk (device) to operate,
+and works it remotely. A kiosk can be operated by only one agent at a time; everyone else
+is an observer whose action buttons are blocked until they take or request control. Many
+guest-facing actions (scan, cash, key, print, ratings, photo, guest details, document
+signature) only work during an active transaction session. When an agent presses a button,
+the kiosk performs the action on its hardware and reports status back — so actions only
+work when the device is online and the agent has control. When something does not work, the
+usual causes (in order) are: device offline, you are an observer (no control), no active
+transaction, or the page needs a refresh to re-sync.
+
+**Conventions:** on-screen labels and status words appear in "double quotes"; "Route/URL"
+lines give the page's address-bar path (useful for identifying a page); location notes
+("top-right header", "card footer", and so on) tell you where on the screen to look.
 
 ## Contents
 
 - [Part 1 — Overview & Core Concepts](#part1)
 - [Part 2 — Agent Dashboard (Front-Desk Operator)](#part2)
-- [Part 3 — Admin Console](#part3)
-- [Part 4 — Kiosk Features & Hardware Behavior](#part4)
-- [Part 5 — Troubleshooting & Recovery](#part5)
-- [Part 6 — Hardware Guide](#part6)
-- [Part 7 — Device Configuration & Lifecycle](#part7)
+- [Part 3 — Kiosk Features & Hardware Behavior](#part3)
+- [Part 4 — Troubleshooting & Recovery](#part4)
+- [Part 5 — Hardware Guide & Device Configuration](#part5)
 
 ---
 
@@ -42,7 +43,7 @@ header", "card footer", and so on) tell you where on the screen to look.
 ## Part 1 — Overview & Core Concepts
 
 > This document explains the cross-cutting ideas that apply to *every* page of the
-> Kiotel web dashboard. The chatbot should read this first, because almost every
+> Kiotel agent dashboard. The chatbot should read this first, because almost every
 > page-specific question (cash dispenser, scanner, key dispenser, etc.) depends on
 > the ideas below: **who is logged in**, **which device is selected**, **whether the
 > device is online**, **who has control of the device**, and **whether a transaction
@@ -50,18 +51,15 @@ header", "card footer", and so on) tell you where on the screen to look.
 
 ---
 
-### 1. The two applications
+### 1. The Agent Dashboard
 
-The Kiotel web interface is actually **two separate applications** on the same site:
+The Kiotel Agent Dashboard lives at /dashboard. Front-desk **agents** sign in at /login to
+remotely operate one hotel kiosk at a time: greet the guest over video, scan IDs, take
+cash, dispense room keys, print receipts, and more. An agent operates **one device at a
+time**.
 
-| Application | Where it lives | Who logs in | Purpose |
-|-------------|----------------|-------------|---------|
-| **Agent Dashboard** (front-desk / operator side) | /dashboard | Front-desk **agents** | Remotely operate one hotel kiosk: greet the guest over video, scan IDs, take cash, dispense room keys, print receipts, etc. |
-| **Admin Console** | /admin | **Admins / super-admins** | Configure the whole fleet: devices, agents, assignments, permissions, tasks, transaction reports, settings, etc. |
-
-They have **separate logins** (agents sign in at /login, admins at /admin/login) and
-separate navigation. An agent operates **one device at a time**; an admin oversees
-**all devices**.
+(A separate Admin Console exists for fleet-wide configuration, but its screens are outside
+the scope of this document.)
 
 ---
 
@@ -73,7 +71,7 @@ dispenser**, an **ID/passport scanner**, **indicator lights**, a **receipt print
 speaker for spoken messages, and a **Google Meet** video window for talking to the guest.
 
 When an agent presses a button in the dashboard, the kiosk performs that action on its
-physical hardware and reports the result back. See the kiosk-features document for what
+physical hardware and reports the result back. See the kiosk-features section for what
 each feature does on the hardware.
 
 ---
@@ -107,14 +105,12 @@ Agents sign in in **two steps**:
 
 Notes:
 - An agent can only pick devices they are **assigned** to, and that assignment is checked
-  every time — if an admin removes the assignment, the agent loses access.
+  every time — if the assignment is removed, the agent loses access.
 - A record of the agent's browser/computer is taken at sign-in (used for the
   trusted-browser / login-approval checks).
 - **Switching device:** there is a **"Switch Device"** button in the agent top bar. It
   drops the current device and returns the agent to the device-selection screen.
 - **Logout** signs the agent out and returns to the sign-in screen.
-
-Admins sign in separately at /admin/login and are never asked to pick a device.
 
 ---
 
@@ -158,13 +154,11 @@ The control state of the selected device is one of:
   - The request **auto-expires after about 30 seconds** if the controller doesn't answer.
   - Possible outcomes (shown as pop-ups): **approved** (you get control), **denied**,
     **timeout** ("no response, you can request again"), **busy** ("another request is
-    already pending"), or **superseded** ("an admin changed device control").
+    already pending"), or **superseded** ("device control was changed" — this can happen
+    if a fleet manager forcibly reassigns control).
 - **Incoming request prompt** — if you *are* the controller, you get a prompt when someone
   requests access, with **Approve** / **Deny** buttons and a countdown.
 - **Release control** — frees the device so another agent can take it.
-- **Admin override ("Give Control")** — on the Admin → Assignments page, an admin can
-  forcibly reassign control of a device to a specific agent, which overrides any pending
-  request.
 
 #### Observer banner
 When you're an observer, a **banner** explains that another agent (named) is controlling
@@ -199,8 +193,8 @@ library) are available **with or without** an active session.
 - **Start Transaction** — begins a new session for the current device and agent. A live
   **elapsed timer** starts counting.
 - **Stop Transaction** — ends the session manually.
-- **Auto-timeout** — a session ends on its own after a set time (**default 30 minutes**;
-  an admin sets this in Settings). A pop-up warns "Transaction session timed out".
+- **Auto-timeout** — a session ends on its own after a set time (**default 30 minutes**,
+  configured centrally). A pop-up warns "Transaction session timed out".
 - **Auto-complete on key dispense** — when the kiosk reports that a room-key card was
   dispensed, the session is automatically marked **completed** ("Transaction completed —
   key dispensed").
@@ -219,28 +213,7 @@ agent to fill them so the transaction record is complete.
 
 ---
 
-### 8. Admin permissions model
-
-Admins come in two roles:
-- **Super-admin** — has **every** permission, always.
-- **Admin** — has a **per-feature permission grid**: for each feature they can be granted
-  **Create**, **View**, **Update**, and/or **Delete**. An admin only sees and can use the
-  features they're granted.
-
-The features governed by permissions are: **Devices, Agents, Assignments, Tasks,
-Notifications, Transactions** (view only), **Documents** (view only), **Login History,
-Authorization, Allowed Locations, Receipt Variables, Lights, Function Mapping,
-Application Manager, Extension Tokens, External API, Activity Log,** and **Settings**.
-
-- The **sidebar hides** menu items the admin can't view, and individual buttons
-  (Add / Edit / Delete) are **hidden or disabled** when the admin lacks that action.
-- Permissions are edited per-admin from the **Admin Management** page.
-- Note: **device license actions** (revoke, re-enable, rotate secret, approve) count as
-  **Authorization** permissions, not Devices permissions.
-
----
-
-### 9. Common status indicators (what colors/labels mean)
+### 8. Common status indicators (what colors/labels mean)
 
 - **Online / green dot** — the kiosk is connected. Actions will be delivered.
 - **Offline / red or grey** — the kiosk is not connected. Actions won't be delivered;
@@ -254,7 +227,7 @@ Application Manager, Extension Tokens, External API, Activity Log,** and **Setti
 
 ---
 
-### 10. Universal troubleshooting checklist
+### 9. Universal troubleshooting checklist
 
 When *anything* on the dashboard isn't working, walk this list (most issues are one of the
 first three):
@@ -273,14 +246,11 @@ first three):
    re-acquire the device if its control/session state looks wrong.
 6. **Check the on-page recovery panel.** Device pages have recovery actions (reset, retry,
    reconnect hardware) — see the page's "Recovery & troubleshooting" section.
-7. **Permissions (admin side).** If a menu item or button is missing in the Admin Console,
-   the admin account may lack that permission — a super-admin can grant it in Admin
-   Management.
-8. **Re-login.** If your sign-in expired or was revoked you'll be sent back to the login
+7. **Re-login.** If your sign-in expired or was revoked you'll be sent back to the login
    screen; sign in again.
 
-See the troubleshooting-and-recovery document for failure-specific recovery (cash jams,
-scanner re-initialization, key dispenser errors, video-call recovery, etc.).
+See Part 4 for failure-specific recovery (cash jams, scanner re-initialization, key
+dispenser errors, video-call recovery, etc.).
 
 ---
 
@@ -288,11 +258,10 @@ scanner re-initialization, key dispenser errors, video-call recovery, etc.).
 
 ## Part 2 — Agent Dashboard (Front-Desk Operator)
 
-> This covers every page of the agent side (/dashboard/*). Read
-> "01-overview-and-concepts.md" first — it explains the concepts every page relies on:
-> device online/offline, control vs. observer, and the transaction session
-> gate. Where a page says "requires an active transaction" or "requires control", see
-> the overview for what that means and how to fix it.
+> This covers every page of the agent side (/dashboard/*). Read Part 1 first — it explains
+> the concepts every page relies on: device online/offline, control vs. observer, and the
+> transaction session gate. Where a page says "requires an active transaction" or "requires
+> control", see Part 1 for what that means and how to fix it.
 >
 > Quick legend
 > - Transaction-gated — only works during an active transaction session; otherwise
@@ -546,8 +515,7 @@ Transaction" in the top bar.
   recycler/cashbox data. Buttons are disabled mid-dispense to prevent overlapping payouts.
 - Recovery & troubleshooting: the Recovery panel is the main recovery surface
   (Clear Transaction, return escrow, halt payout, reset device, reload routes,
-  COM re-attempt). Cash-in auto-stops at the target. See
-  "05-troubleshooting-and-recovery.md".
+  COM re-attempt). Cash-in auto-stops at the target. See Part 4.
 - Related: guest details shared with Print; cashbox totals also appear on the Home
   page and top bar.
 
@@ -714,10 +682,10 @@ Transaction" in the top bar.
     - "Show Captions" — turns captions on.
 - States: status badge: "No active call", "Joining call…", "Waiting for host to
   admit", "In call", "Join request denied", "Retrying join…", "Removed from call",
-  "the video window crashed and is recovering", "Call ended", or "Error". The three or four enforced
-  toggles are forced ON and auto-revert about 60 seconds after being switched off (while in
-  control). A 10-second reconnect grace ignores spurious removed/ended status right after
-  (re)connecting.
+  "the video window crashed and is recovering", "Call ended", or "Error". Some toggles
+  may be enforced (kept on) depending on device configuration and auto-revert about 60
+  seconds after being switched off (while in control). A 10-second reconnect grace
+  ignores spurious removed/ended status right after (re)connecting.
 - Recovery & troubleshooting: denied leads to "Retry Call"; existing session leads to
   "End Previous & Start New"; a kiosk display crash auto-recovers. Invalid links show
   "Invalid video call URL or code." A guest-assist alert (sound plus notification) asks
@@ -805,8 +773,9 @@ Transaction" in the top bar.
 - What happens: the page requests the current light status when it opens. Toggles turn
   an individual channel on or off; "All ON"/"All OFF" switch every channel; "Refresh"
   re-requests the status. The kiosk's replies update the toggles, the indicator, and the
-  log. Channel names come from the device's label mapping (falling back to "Channel N"),
-  and whether the page is enabled depends on the device's indicator-lights setting.
+  log. Channel names come from a label mapping configured centrally (falling back to
+  "Channel N"), and whether the page is enabled depends on the device's indicator-lights
+  setting.
 - UI elements: "Refresh" (Status card header), "All ON" / "All OFF" (Output
   Controls header; disabled when disconnected), per-channel toggles (disabled when
   disconnected), "Clear" (Event Log header), "Go to Settings" (only when lights are
@@ -816,8 +785,7 @@ Transaction" in the top bar.
   controls disabled while disconnected; log color-coded CMD/INFO/WARN/ERR.
 - Troubleshooting: if Disconnected, press "Refresh" (the log notes "IO board
   disconnected" / "Status synced"). Generic "Channel N" names mean the label mapping isn't
-  configured (admin sets it on Admin → Lights). If the page is disabled, enable lights in
-  "Settings".
+  configured. If the page is disabled, enable lights in "Settings".
 
 #### Legal Documents (template library)
 - Route/URL: /dashboard/legal-documents
@@ -897,8 +865,8 @@ Transaction" in the top bar.
   without the edit permission), "Duplicate" (disabled without the add permission),
   "Delete" (red, disabled without the delete permission) leading to a Delete confirmation
   dialog.
-- Troubleshooting: greyed buttons mean a missing permission (contact an admin); "No
-  device selected" means choose a device.
+- Troubleshooting: greyed buttons mean a missing permission (contact your
+  administrator); "No device selected" means choose a device.
 - Related: the Editor (below); printed receipts appear in Session Command Events on
   Transaction Reports.
 
@@ -1017,8 +985,8 @@ Transaction" in the top bar.
     Check Out Time, Breakfast Time (all required); Cash Port / Key Port (COM0–COM11), Baud
     Rate; "Cash Dispenser Type" (NV4000/NV200 — switches the routes section below);
     "Scanner Option" (SINOSECU_LOCAL/OLD); "OCR Option" (InHouse / InHouse Cloud /
-    GuestBan — GuestBan disabled with "(key not configured)" until an admin sets the
-    GuestBan key); "Indicator Lights" (U10/None — None disables the Lights page);
+    GuestBan — GuestBan disabled with "(key not configured)" until the integration key
+    is set); "Indicator Lights" (U10/None — None disables the Lights page);
     "Simulation Mode" toggle (only with the Simulation-Mode permission); Body Notes,
     Footer Notes; "Save Options" button.
   - Cash Denomination Routes card (title shows the dispenser type): Currency; Recycler
@@ -1028,8 +996,8 @@ Transaction" in the top bar.
 - States: each card shows an amber "Unsaved changes" badge when its values differ from
   saved. Required fields marked with a red asterisk; invalid fields highlighted.
 - Troubleshooting: saving with missing fields shows "Please fill N required field(s)…"
-  and the view scrolls to the first invalid field. For GuestBan OCR, an admin must
-  configure the GuestBan key first (Admin → Settings).
+  and the view scrolls to the first invalid field. For GuestBan OCR, the integration key
+  must be configured centrally before it can be selected here.
 - Related: "Indicator Lights" (enabled/typed here); cash features (routes plus cashbox).
 
 ---
@@ -1110,7 +1078,7 @@ These appear across many device pages (not as standalone sidebar items).
 
 #### Notification Modal (forced-acknowledgement broadcast)
 - Where: a full-screen blocking modal (blurred backdrop, no close button) when
-  there are queued admin notifications.
+  there are queued broadcast notifications.
 - Controls: "I Acknowledge" (disabled until you scroll the body to the bottom; then
   advances the queue), a "Scroll to the bottom to continue" hint, and a "1 of N" badge for
   multiple queued notices.
@@ -1151,765 +1119,17 @@ and see how the device responded.
 
 <a id="part3"></a>
 
-## Part 3 — Admin Console
-
-> This covers every page of the **admin side** (under /admin) plus the shared login/access
-> screens. Read "01-overview-and-concepts" first for the cross-cutting concepts, especially
-> the **per-admin permission model** that governs what every admin can see and do.
->
-> **Permission shorthand:** most admin pages require the feature's **View** permission to
-> open (otherwise you see an "Access denied" card). Inside a page, **Add/Create**,
-> **Edit/Update**, **Delete**, and toggles are individually hidden or disabled unless the
-> admin has that specific permission. **Super-admins** always have every permission.
-
----
-
-### A. Admin navigation, layout & permissions
-
-#### Layout shell
-Every admin page lives under /admin. The shell checks you're logged in (redirecting to
-/admin/login if not) and renders the **left sidebar** + **top bar** around the page
-content.
-
-#### Left sidebar (full menu)
-The dark sidebar is titled **"KIOTEL ADMIN"**. On desktop it's a fixed rail on the left;
-on mobile a **hamburger button** (top-left) opens it as a sheet. The active page is
-highlighted. Items appear in this order (each requires View permission for the named
-feature; a hidden item means you lack that View permission, or the item is super-admin
-only):
-
-1. **Overview** — /admin (always visible)
-2. **Devices** — /admin/devices (needs View permission for Devices)
-3. **Agents** — /admin/agents (needs View permission for Agents)
-4. **Assignments** — /admin/assignments (needs View permission for Assignments)
-5. **Tasks** — /admin/tasks (needs View permission for Tasks)
-6. **Notifications** — /admin/notifications (needs View permission for Notifications)
-7. **Transactions** — /admin/transactions (needs View permission for Transactions)
-8. **Documents** — /admin/documents (needs View permission for Documents)
-9. **Login History** — /admin/login-history (needs View permission for Login History)
-10. **Authorization** — /admin/authorization (needs View permission for Authorization) —
-    shows a **red pending count badge** (pending logins + devices) at the far right of the
-    row
-11. **Allowed Locations** — /admin/locations (needs View permission for Allowed Locations)
-12. **Receipt Variables** — /admin/receipt-variables (needs View permission for Receipt
-    Variables)
-13. **Lights** — /admin/lights (needs View permission for Lights)
-14. **Function Mapping** — /admin/function-mapping (needs View permission for Function
-    Mapping)
-15. **Application Manager** — /admin/installer-versions (needs View permission for
-    Application Manager)
-16. **Extension Tokens** — /admin/extension-tokens (needs View permission for Extension
-    Tokens)
-17. **Admin Management** — /admin/admin-management (**Super Admin only**)
-18. **External API** — /admin/external-api (needs View permission for External API)
-19. **Activity Log** — /admin/activity-log (needs View permission for Activity Log)
-20. **Settings** — /admin/settings (needs View permission for Settings)
-
-#### Top bar
-Left to right: a **shield icon + "Admin Panel"** label; your **display name** (falls back
-to "Admin"); a **role badge** ("Super Admin" solid / "Admin" grey); and a **Logout**
-button (signs you out and returns you to /admin/login). There is **no notification bell and
-no theme/dark-mode toggle** in the admin top bar.
-
-#### Per-admin permission concept
-Each feature supports a subset of **Create / View / Update / Delete**. Some support only a
-few (Transactions and Documents are View-only; Authorization and Login History are View +
-Update; Extension Tokens is View + Delete). Super-admins implicitly have everything.
-Regular admins receive an effective set of permissions from the system (refreshed about
-every 60 seconds and whenever you bring the window back into focus); each page uses these
-to decide what to show. The sidebar hides items you can't view, and action buttons hide or
-disable when you lack the matching permission. New admins default to View on most features,
-plus Create and Update on Devices, Agents, and Assignments. A super-admin can edit any
-admin's permissions on **Admin Management**.
-
----
-
-### B. Overview (home)
-
-#### Admin Overview (Dashboard Home)
-- **Route/URL:** /admin
-- **How to reach it:** sidebar **Overview** (position 1); also the landing page after
-  login.
-- **Required permission:** no page-level gate; each stat card only appears if you have View
-  permission for its feature.
-- **Purpose:** a quick at-a-glance dashboard of key fleet counts, each card linking to its
-  full page.
-- **What happens when you use it:** the page only reads data, never changes anything. Each
-  count is fetched only when you have View permission for that feature.
-- **UI elements:** clickable stat cards — **Devices** (goes to Devices), **Transactions**
-  (goes to Transactions), **Documents** (goes to Documents), **Pending Auth** (pending
-  logins + devices; the number turns red when above zero and goes to Authorization),
-  **Inactive Agents** (turns orange when above zero and goes to Agents).
-- **Troubleshooting:** read-only; counts refresh as you navigate. Cards you can't view are
-  simply hidden.
-
----
-
-### C. Fleet management
-
-#### Devices
-- **Route/URL:** /admin/devices
-- **How to reach it:** sidebar **Devices** (position 2); also the Overview "Devices" card.
-- **Required permission:** needs View permission for Devices to open. Add needs Create for
-  Devices; Edit/Settings/push-update needs Update for Devices; Delete needs Delete for
-  Devices; Revoke/Rotate/Re-enable/Rotate-All needs Update permission for Authorization.
-- **Purpose:** the master registry of all kiosk devices — create, edit, license-manage,
-  push software updates, and configure per-device video-call rules.
-- **When an admin uses it:** onboard a new kiosk, rename or relocate one, push an update,
-  revoke a stolen unit, rotate a leaked secret, or tune in-call enforcement.
-- **What happens when you use it:** the list refreshes automatically about every 12 seconds
-  and includes removed devices. License and secret actions disconnect the affected kiosks
-  and move them into a pending-review state on the Authorization page. A push-update closes
-  the kiosk app on that device and re-installs it.
-- **UI elements:**
-  - **"Rotate All Secrets"** — *top-right header* (needs Update permission for
-    Authorization) — a destructive confirmation that clears the secret for **every** device
-    (you must type "ROTATE ALL" to confirm).
-  - **"Add Device"** — *top-right header* (needs Create permission for Devices) — dialog
-    with **Device ID** (4-digit numeric; a **"Generate ID"** button with a sparkles icon
-    auto-fills a unique ID), **Device Name**, **Location**; **"Cancel"** / **"Create"**.
-  - **Search box** — search by ID, name, or location.
-  - **Devices table columns:** Status (online dot), Device ID, Name, Location, License
-    Status, Version, Hardware Fingerprint (first 16 characters), Created.
-  - **Per-row actions** (hidden if the device is "Removed"):
-    - **Download/Update icon** — for an offline kiosk it's disabled ("Kiosk offline"); when
-      an update is available it's blue and immediately pushes the update; when up-to-date
-      it's grey and opens a "Force re-update" confirmation.
-    - **Edit (pencil)** — opens the Edit Device dialog (Name, Location; the ID is fixed).
-    - **Settings (gear) "Device Settings and Rules"** — dialog with three toggles:
-      **"Enforce Fill Screen With Video"**, **"Enforce Captions"** (both automatically
-      re-enable one minute after an agent turns them off), and **"Enforce Tap For
-      Assistance"** (an idle bottom-panel animation during calls).
-    - **Revoke (red ban icon)** — shown when the license is active; opens a revoke
-      confirmation.
-    - **Rotate Secret (key icon)** — shown when active; opens a rotate-secret confirmation.
-    - **Re-enable (green refresh icon)** — shown when revoked; opens a re-enable
-      confirmation.
-    - **Delete (red trash icon)** — opens a delete confirmation.
-- **States:** online green dot versus grey. License badges — **"Active"** (green),
-  **"Pending Review"** (yellow), **"Revoked"** (red), **"Unregistered"** (grey). The
-  Version column shows an amber **"Outdated"** badge when an update is available. Removed
-  devices are greyed out with a "Removed" badge and no actions.
-- **Recovery & troubleshooting:** **Re-enable** moves a revoked device back to pending
-  review (it still needs Authorization approval). **Force Re-update** repairs a kiosk on the
-  same version while preserving its configuration and scanning/processing environment.
-  **Rotate Secret** and **Rotate All** force the device(s) to re-register. All license
-  actions refresh the pending-device count.
-- **Related:** Authorization (approve pending re-registrations), Application Manager
-  (defines the versions pushed here).
-
-#### Agents
-- **Route/URL:** /admin/agents
-- **How to reach it:** sidebar **Agents** (position 3); also the Overview "Inactive Agents"
-  card.
-- **Required permission:** needs View permission for Agents. Import/Add needs Create for
-  Agents; status toggle/unlock/edit needs Update for Agents; delete needs Delete for Agents.
-- **Purpose:** manage the agent (front-desk operator) roster — create, edit,
-  activate/deactivate, unlock after failed logins, and bulk-import from a spreadsheet file.
-- **What happens when you use it:** the list includes removed agents. Bulk imports are
-  processed in small batches (about 25 rows at a time) and the file is read in your browser.
-- **UI elements:**
-  - **"Import CSV"** — *top-right* (needs Create permission) — opens a multi-step Import
-    Agents dialog.
-  - **"Add Agent"** — *top-right* (needs Create permission) — dialog with **Agent ID**
-    (6-digit numeric with a Generate ID button), **Name**, **Email**, **Phone**,
-    **Password**.
-  - **Search box** — search by ID, name, email, or phone.
-  - **Agents table columns:** Agent ID, Name, Email, Phone, Status, Failed Logins, Locked
-    Until, Actions.
-  - **Per-row actions** (hidden if Removed): **Active toggle** (activate/deactivate
-    confirmation), **Unlock** (only when locked; unlock confirmation), **Edit**
-    (Name/Email/Phone/Password — "leave blank to keep"), **Delete** (red).
-  - **Import Agents dialog (4 phases):** *Select* (Format 1 includes the agent ID; Format 2
-    auto-assigns the ID matched on email; a sample spreadsheet can be downloaded; there's a
-    file drop area), *Preview* (first 5 rows), *Uploading* (progress X of Y), *Result*
-    (Imported/Updated/Failed counts; download a result spreadsheet; sample failures shown).
-- **States:** Status badge **"Active"** / **"Inactive"** (red). Failed Logins shown in red
-  when above zero. Removed agents greyed out with a "Removed" badge.
-- **Recovery & troubleshooting:** **Unlock** resets the failed-login count and clears the
-  lockout (the password is unchanged — use Edit to reset it). The **Active** toggle is a
-  temporary suspension; **Delete** is permanent offboarding (history is preserved and the
-  agent ID can't be reused).
-- **Related:** Assignments, Authorization / Login History.
-
-#### Assignments
-- **Route/URL:** /admin/assignments
-- **How to reach it:** sidebar **Assignments** (position 4).
-- **Required permission:** needs View permission for Assignments. Import/Add needs Create
-  for Assignments; Give-Control/Edit needs Update for Assignments; Delete needs Delete for
-  Assignments. "Assign All to All" is **Super Admin only**.
-- **Purpose:** define which agents can operate which kiosks and, per pairing, what
-  feature-level permissions they have; also reassign live device control.
-- **When an admin uses it:** grant an agent access to a kiosk, fine-tune per-pairing
-  permissions (receipt designer, storage, legal docs, simulation mode), bulk-assign, or
-  **force-transfer control** of a device during a handover when an agent is unresponsive.
-- **What happens when you use it:** the list shows 20 per page, can be filtered by device or
-  agent, and refreshes about every 30 seconds. Bulk options pair one agent with all devices,
-  all agents with one device, or all agents with all devices. Giving control transfers
-  control immediately and demotes the previous controller to an observer.
-- **UI elements:**
-  - **"Import CSV"** — *top-right* (needs Create permission).
-  - **"Add Assignment"** — *top-right* (needs Create permission) — **Agent** + **Device**
-    search-selects, plus a grid of permission toggles. The **"Select all agents"** /
-    **"Select all devices"** checkboxes switch into a bulk operation.
-  - **"Assign All to All"** — *top-right* (Super Admin only) — pairs every active agent with
-    every active device.
-  - **Permission toggles** (grouped): *General* — Admin Lock, Options Edit, Simulation Mode
-    Toggle, Hide Video Call Display. *Receipt Designer* — Add/Duplicate, Edit, Delete, Set
-    Active Design. *Storage Access* — Upload Files, Delete Files. *Legal Documents* —
-    Upload, Delete, Edit Templates, Send to Kiosk.
-  - **Filters** — Filter by Device, Filter by Agent, **"Clear"**, and a right-aligned count.
-  - **Assignments table columns:** Agent (online dot + ID + name), Device, Control, General
-    (badges), Receipt Designer, Storage, Legal Docs, Actions.
-  - **Per-row actions:** **Give control (blue monitor icon)** — only available if this agent
-    isn't the current controller; disabled if the agent isn't connected to the device.
-    **Edit** (full permission grid). **Delete** (red).
-- **States:** the agent online dot is green when that agent is connected to that device. The
-  Control column shows **"In Control"** in green, "by {other agent}", or "—". General badges
-  include **"Locked"** (red), **"Options"**, **"Sim Mode"**, **"Hide Video"**.
-- **Recovery & troubleshooting:** **Give Control** forcibly reassigns control (it closes any
-  in-flight control request; nothing changes if the agent disconnects first). Deleting an
-  assignment erases all of its permission flags.
-
-#### Authorization
-- **Route/URL:** /admin/authorization
-- **How to reach it:** sidebar **Authorization** (position 10; red pending-count badge);
-  also the Overview "Pending Auth" card.
-- **Required permission:** needs View permission for Authorization. Approving/discarding
-  logins needs Update permission for Login History; approving/revoking devices needs Update
-  permission for Authorization.
-- **Purpose:** review and approve/reject pending **agent login attempts** (new browser
-  fingerprints) and pending **device registrations** (new or changed hardware
-  fingerprints).
-- **When an admin uses it:** a daily security gate — whitelist legitimate logins, approve a
-  fresh kiosk install or a kiosk whose hardware changed, and reject anything you can't
-  verify.
-- **What happens when you use it:** the Login tab lists pending login attempts (25 per
-  page); the Device tab lists devices that are pending review and explains *why* each is
-  pending. Approving or rejecting takes effect immediately and updates the pending counts.
-- **UI elements:**
-  - **Tabs** — **"Login Requests"** / **"Device Requests"**, each with a red count badge.
-  - **Login Requests table:** Agent ID, Device ID, IP Address, Fingerprint, Browser, Login
-    Time, Actions — **"Authorize" (green check)** (whitelists this fingerprint + IP),
-    **"Discard" (red X)** (rejects it).
-  - **Device Requests table:** Device ID, Device Name, Current Fingerprint (shows old to new
-    for hardware changes, or a reason such as "secret rotated / re-enabled / re-registered"),
-    Actions — **"Approve"** (activates the license and binds the current fingerprint),
-    **"Revoke"** (rejects; the device must be Re-enabled on the Devices page to retry).
-- **States:** red count badges on the tabs; empty states show a grey shield ("No pending
-  login requests" / "No pending device requests").
-- **Recovery & troubleshooting:** only approve after out-of-band verification. A revoked
-  device returns here only after you **Re-enable** it on the Devices page. Discarded logins
-  remain in history for audit.
-- **Related:** Devices, Login History, Agents.
-
-#### Login History
-- **Route/URL:** /admin/login-history
-- **How to reach it:** sidebar **Login History** (position 9).
-- **Required permission:** needs View permission for Login History. Per-row
-  Authorize/Discard needs Update permission for Login History.
-- **Purpose:** review **all** agent login attempts (success/failed/pending) and approve or
-  reject pending authorization requests for new browser fingerprints.
-- **What happens when you use it:** login attempts are listed 25 per page with filters for
-  device, agent, status, authorization state, and date. Approving shows "Login authorized"
-  and discarding shows "Login discarded"; both refresh the list and the pending counts.
-- **UI elements:**
-  - **Filter card:** **Device** dropdown (removed devices show "(removed)"), **Agent**
-    dropdown, **Status** (success/failed/pending), **Authorization**
-    (pending/authorized/discarded/auto-authorized), **Start/End Date**.
-  - **History table:** Agent ID, Device, IP, Fingerprint, Time, Status (green success / red
-    otherwise), Authorization badge, Actions.
-  - **"Authorize" (green check)** / **"Discard" (red X)** — only for "pending" rows, and
-    only with Update permission; each opens a confirmation explaining the impact (Authorize
-    whitelists the fingerprint + IP; Discard invalidates the session but preserves the
-    attempt record).
-  - **Pagination** — 25 per page.
-- **Recovery & troubleshooting:** a login you discard by mistake simply re-authenticates (a
-  new pending request appears). Errors show a toast and keep the dialog open so you can
-  retry.
-- **Related:** Settings → Login Authorization / Auto-Authorization, the agent /login page,
-  Authorization.
-
-> **Note:** /admin/login-authorization is **not a real page** — it's a legacy redirect to
-> /admin/authorization. The live login-authorization workflow lives on **Login History**
-> (per-row Authorize/Discard) and **Settings → Login Authorization**.
-
-#### Admin Management
-- **Route/URL:** /admin/admin-management
-- **How to reach it:** sidebar **Admin Management** (position 17) — **visible only to Super
-  Admins**.
-- **Required permission:** Super-Admin only (the sidebar hides it from others, and only
-  super-admins can reach the page).
-- **Purpose:** create and manage admin/super-admin accounts, reset their passwords,
-  activate/deactivate them, delete them, and edit per-admin feature permissions.
-- **What happens when you use it:** your own row is detected automatically and protected, so
-  you can't toggle or delete yourself.
-- **UI elements:**
-  - **"Create Admin"** — *top-right* — dialog: **Name**, **Email**, **Password**, **Role**
-    (Admin / Super Admin — selecting Super Admin shows a full-privileges warning).
-  - **Table columns:** Name (with "(you)" on your row), Email, Role badge, Status badge,
-    Created, Actions.
-  - **Per-row actions:** **Active toggle** (hidden on your row; activate/deactivate
-    confirmation), **Reset password** (key icon; "Minimum 8 characters", with a second
-    confirmation before applying), **Permissions** (shield-check icon; non-super-admins only,
-    opens the permissions matrix dialog), **Delete** (hidden on your row; destructive
-    confirmation).
-  - **Permissions matrix dialog:** every feature (rows) by Create/View/Update/Delete
-    (columns) as checkboxes; unsupported actions show "—". **"Reset to Defaults"**,
-    **"Cancel"**, **"Save"**.
-- **Recovery & troubleshooting:** resetting a password requires a second confirmation, and
-  you must communicate the new password yourself (no email is sent). Deleting the last
-  super-admin may be blocked by the system. The Active toggle is a temporary suspension.
-- **Related:** drives the permission gating used across the entire admin panel.
-
-#### Allowed Locations
-- **Route/URL:** /admin/locations
-- **How to reach it:** sidebar **Allowed Locations** (position 11).
-- **Required permission:** needs View permission for Allowed Locations. Add needs Create;
-  Edit needs Update; Delete needs Delete.
-- **Purpose:** define geofences (latitude/longitude + radius) that restrict where agents can
-  sign in.
-- **What happens when you use it:** deleting a location is a permanent, irreversible
-  removal. If no **active** location exists, geo-checking is effectively off.
-- **UI elements:** **"Add Location"** (*top-right*) — **Label**, **Latitude**/**Longitude**
-  (decimal degrees), **Radius (km)** (default 50), **Active** switch; **Table**: Label, Lat,
-  Lng, Radius, Active badge, Actions (**Edit**, **Delete** with destructive confirmation).
-- **States:** two yellow warning banners — "No active locations — geo-check is currently
-  disabled" and "No locations configured — geo-check is disabled".
-- **Recovery & troubleshooting:** use the **Active** toggle to disable a fence temporarily
-  rather than deleting it (delete is a hard, irreversible removal).
-- **Related:** Login History / Authorization (the geofence affects login).
-
----
-
-### D. Configuration
-
-#### Settings (global)
-- **Route/URL:** /admin/settings
-- **How to reach it:** sidebar **Settings** (position 20).
-- **Required permission:** needs View permission for Settings. Each Save (except the Admin
-  Account card) needs Update permission for Settings; the Admin Account card is always
-  available to the signed-in admin.
-- **Purpose:** configure global system behavior (transaction timeout, device-agent mapping
-  mode, login authorization), the GuestBan integration key, and the current admin's own name
-  and password.
-- **What happens when you use it:** saving your own name/password takes effect immediately
-  without requiring you to sign in again.
-- **UI elements:**
-  - **Transaction Settings card:** **Auto-timeout (minutes)** (minimum 1; sessions
-    auto-stop after this) + **"Save"**.
-  - **Device-Agent Mapping card:** **Mapping Mode** dropdown — "One-to-One (strict)" versus
-    "Many-to-Many (flexible)" + **"Save"**.
-  - **Login Authorization card:** **Auto-Authorization** dropdown — "Disabled" / "Enabled"
-    (when enabled, geolocation checks still apply; otherwise new fingerprints need manual
-    approval) + **"Save"**.
-  - **GuestBan Integration card:** **Status** ("Key configured" green / "No key set"),
-    **Bearer Token** password input, **"Update Key"** (disabled unless non-empty), **"Clear
-    Key"** (only when a key exists).
-  - **Admin Account card:** **Name**, **Current Password** (required to save any change),
-    **New Password** (blank keeps current), **Confirm New Password** (inline "Passwords do
-    not match"), **"Save"** (disabled while loading, when the current password is empty, on
-    mismatch, or when nothing changed). On success you stay signed in.
-- **Recovery & troubleshooting:** failed saves show a toast and leave the fields editable.
-  The GuestBan key can be cleared and re-entered. For an agent to select GuestBan scanning
-  in the device Settings, the GuestBan key must be set here first.
-- **Related:** Login History/Authorization (auto-authorization), Assignments/Devices
-  (mapping mode), Documents/ID scanning (GuestBan), Transactions (timeout).
-
-#### Function Mapping
-- **Route/URL:** /admin/function-mapping
-- **How to reach it:** sidebar **Function Mapping** (position 14).
-- **Required permission:** needs View permission for Function Mapping. Add needs Create;
-  Edit needs Update; Delete needs Delete.
-- **Purpose:** bind a fixed set of kiosk hardware functions to an on-screen animation and/or
-  a physical indicator light. This powers the agent-side cues (for example, when "Start
-  Scan" fires, show the ID-scan animation and light its lamp).
-- **What happens when you use it:** there are five mappable functions (Start Scan, Start
-  Cash In, Move to Read Position, Dispense to Front, Print Receipt) and twelve animations.
-  The light options come from the labels configured on the Lights page.
-- **UI elements:** **"Add Mapping"** (*card header*; disabled when all functions are mapped)
-  — **Function** (only unmapped functions), **Animation** (1–12 or None), **Light**
-  (configured labels or None). **Table:** Function, Animation, Light, Actions (**Edit** —
-  function is read-only; **Delete**).
-- **Recovery & troubleshooting:** deleting a mapping means that function fires with no
-  animation/light; recreate it to restore. A deleted light label shows "—" until reassigned.
-- **Related:** Lights (defines the selectable labels), and the agent-side composite cue.
-
-#### Lights Configuration
-- **Route/URL:** /admin/lights
-- **How to reach it:** sidebar **Lights** (position 13).
-- **Required permission:** needs View permission for Lights. Add label needs Create; Edit
-  label and Save Mappings need Update; Delete label needs Delete.
-- **Purpose:** define reusable light "Output Labels" and map them to the 12 physical light
-  channels of the kiosk, so the system knows which physical light is which role (and so the
-  agent-side Indicator Lights page shows real names instead of "Channel N").
-- **UI elements:**
-  - **Output Labels card:** **"Add Label"** — **Key** (lowercase letters/digits/underscore,
-    starting with a letter; locked when editing), **Display Label**; **Table** (Key, Label,
-    **Edit**, **Delete**).
-  - **Global Channel Mapping card:** twelve rows **Channel 1–12**, each a label dropdown or
-    "-- None --"; **"Save Mappings"** persists all of them at once.
-- **Recovery & troubleshooting:** deleting a label unmaps any channel pointing at it and
-  makes referencing function mappings show "—". The key can't be changed after creation.
-- **Related:** Function Mapping (consumes these labels); the agent Indicator Lights page
-  (shows these names).
-
-#### Receipt Variables
-- **Route/URL:** /admin/receipt-variables
-- **How to reach it:** sidebar **Receipt Variables** (position 12).
-- **Required permission:** needs View permission for Receipt Variables. Add needs Create;
-  Edit needs Update; Delete needs Delete (disabled for system variables).
-- **Purpose:** manage the catalog of placeholder tokens (written in double curly braces)
-  usable in receipt designs — their labels, grouping, and optional auto-fill data source.
-- **UI elements:** **"Add Variable"** (*top-right*); **Table** — **Key** (rendered in double
-  curly braces), **Label**, **Group**, **Type** ("System" versus "Custom"), **Source** (the
-  default source, or "—"), Actions (**Edit** — key disabled on edit; **Delete** — disabled
-  for system variables). **Create/Edit dialog:** Variable Key (starts with a letter, then
-  letters/digits/underscore), Display Label, Group, Default Source (an optional auto-fill
-  path such as the guest name from session info).
-- **Recovery & troubleshooting:** there's no undo for deletes — recreate instead. System
-  variables are protected. Templates that reference a deleted variable render the literal
-  placeholder text.
-- **Related:** the agent Receipt Designer (consumes these), Session Detail (receipt events).
-
-#### Application Manager (Installer Versions)
-- **Route/URL:** /admin/installer-versions
-- **How to reach it:** sidebar **Application Manager** (position 15).
-- **Required permission:** needs View permission for Application Manager.
-  Add/installer-URL needs Create or Update; per-version Edit needs Update; Delete needs
-  Delete.
-- **Purpose:** maintain the catalog of kiosk software versions (per environment) and the
-  single bootstrap installer download URL that kiosks use to update. This catalog drives the
-  "update available / Outdated" logic on the Devices page.
-- **What happens when you use it:** the list shows one installer entry plus the app
-  versions, newest first.
-- **UI elements:**
-  - **"Add Version"** — *top-right* — **Installer Type** (Production/Staging/Development),
-    **Version Number**, **Resource URL**, **Release Notes**, **"Mandatory update"** checkbox
-    ("forces update immediately"), **"Requires OCR reinstall"** checkbox ("forces re-running
-    the scanning/processing environment setup").
-  - **Installer card:** set or edit the bootstrap installer URL (**"Set URL" / "Edit URL"**
-    → Save/Cancel; once set, **"Copy URL"** and **"Download"**).
-  - **Application Versions table:** Type (colored badge), Version, Resource URL, Mandatory
-    (Yes red / No), OCR Reinstall (Yes orange / No), Created, Actions (**Download**, **Edit**,
-    **Delete**).
-- **Recovery & troubleshooting:** deleting a version removes it from the catalog (the remote
-  file itself is untouched) — kiosks pinned to it can no longer fetch it. Mandatory versions
-  force updates.
-- **Related:** Devices (push-update / Outdated badge).
-
-#### Notifications
-- **Route/URL:** /admin/notifications
-- **How to reach it:** sidebar **Notifications** (position 6).
-- **Required permission:** needs View permission for Notifications. Create needs Create;
-  Active toggle/Edit/Manage-devices needs Update; Delete needs Delete.
-- **Purpose:** author and manage messages pushed to kiosk devices/agents at defined
-  triggers (login, session start/end, or recurring timers), targeted to all devices or a
-  subset. These appear as the forced-acknowledgement **Notification Modal** on the agent
-  side.
-- **What happens when you use it:** you can filter the list by title. When targeting
-  devices, leaving the target empty means all devices.
-- **UI elements:**
-  - **"Add Notification"** — *top-right* (needs Create permission).
-  - **Filter:** Title input.
-  - **Table:** Title, Triggers (badges: Login, Session start, Session end, "Every Nm",
-    "Every Nm (session)"), Devices ("All devices" or "N device(s)"), **Active** (Switch),
-    Created, Actions (**Manage devices** (server icon), **Edit**, **Delete** (red)).
-  - **Create/Edit dialog:** **Title** (max 255), **Body** (rich editor), **Triggers**
-    switches ("Show on login / device switch", "…start of session", "…end of session",
-    "Recurring" + minutes, "Recurring during active session" + minutes), **Active** switch.
-  - **Manage devices dialog:** **All devices** switch; when off, a required multi-device
-    selector.
-- **Recovery & troubleshooting:** toggle **Active** off to pause rather than delete.
-  Deleting is irreversible. Validation blocks a missing title or body, no trigger, or
-  out-of-range intervals.
-- **Related:** Devices (the targets), the agent Notification Modal.
-
----
-
-### E. Monitoring & audit
-
-#### Transactions
-- **Route/URL:** /admin/transactions
-- **How to reach it:** sidebar **Transactions** (position 7).
-- **Required permission:** needs View permission for Transactions (view-only feature).
-- **Purpose:** browse and export the transaction-session report — every kiosk session with
-  its agent, device, status, and start time — and drill into individual sessions.
-- **What happens when you use it:** the report can be filtered by device, agent, status, and
-  dates, and shows 25 per page; it always shows fresh data. The export produces an Excel
-  spreadsheet named for the selected date range (or "all" when no range is set). Clicking a
-  row opens the session detail page, carrying your filters with it.
-- **UI elements:** **Device** / **Agent** search-selects (with Clear), **Status**
-  (ongoing/completed/timed-out), **Start/End Date**, **"Export XLSX"**, **"Total: N"**;
-  **Sessions table** (Session ID first 8 characters + a "Last viewed" eye badge, Agent,
-  Device, Status badge, Date/Time); **Pagination** 25 per page.
-- **Recovery & troubleshooting:** no destructive actions; export failures show a toast and
-  let you retry. Each visit refetches fresh data.
-- **Related:** Session Detail, Documents, Settings (timeout produces the "timed-out"
-  status).
-
-#### Session Detail (admin)
-- **Route/URL:** /admin/transactions/[sessionId]
-- **How to reach it:** click a row in Transactions (it carries filters + page for the
-  prev/next controls).
-- **Required permission:** needs View permission for Transactions.
-- **Purpose:** the full forensic view of a single kiosk session — session/guest/agent info,
-  cash summary and events, command events, **AI conversation audit + recorded audio**, legal
-  documents, photo captures, scanned ID documents, and guest message inputs.
-- **What happens when you use it:** prev/next move between neighboring sessions, and viewing
-  a session marks it "last viewed". Sub-dialogs load their content on demand (legal PDF,
-  capture image, scan details).
-- **UI elements:** **"Back to Transactions"**; **prev/next** controls (position/total,
-  disabled at the ends); **Details** card (Session, Guest Info, Cash Summary, Agent, Rating);
-  **Conversation Audit panel** (the AI audit plus an audio player for the recording);
-  **Guest Message Input**; **Cash Events** (color-coded types); **Session Command Events**
-  (Print Receipt / Key Dispenser / Show Message / Voice Over + action + details); **Legal
-  Documents** (**"View Details"** opens the signed PDF); **Photo Captures** (**"View"** opens
-  the image); **Scanned Documents** (**"View"** opens a Scan Details dialog with extracted
-  data, alerts, age badges, DNR acknowledgment, and reservation mismatch).
-- **States:** on error a **"Retry"** button; "Session not found" with a Back option. Optional
-  cards only appear when their data exists.
-- **Related:** Transactions list, Documents, Receipt Variables, Settings.
-
-#### Documents
-- **Route/URL:** /admin/documents
-- **How to reach it:** sidebar **Documents** (position 8).
-- **Required permission:** needs View permission for Documents (view-only).
-- **Purpose:** a cross-session catalog of all ID/document scan jobs, with extracted data,
-  alerts, age warnings, and DNR/reservation-mismatch acknowledgments.
-- **What happens when you use it:** the list can be filtered by device, agent, status, and
-  dates, and shows 25 per page. A detail dialog renders the selected scan. The page is
-  read-only.
-- **UI elements:** **Device** / **Agent** search-selects (with Clear), **Status**
-  (started, primary side scanned, completed with extracted data, completed without
-  extracted data, an error occurred, or cancelled), **Start/End Date**; **Documents table** (Session ID, Scan Job
-  ID + "auto" badge, Type, Agent, Device, Status, Details, Updated At) with per-row **"View"**
-  and an **Age badge** ("Age Below 18" red / "Age Below 21" amber); **Scan Details dialog**
-  (image tabs, agent/device details, extracted-data grid, age banner, alerts, DNR
-  acknowledgment, reservation mismatch).
-- **Related:** Session Detail (the same scans scoped to a session), Settings → GuestBan.
-
-#### Activity Log
-- **Route/URL:** /admin/activity-log
-- **How to reach it:** sidebar **Activity Log** (position 19).
-- **Required permission:** needs View permission for Activity Log (view-only).
-- **Purpose:** a read-only audit trail of every administrative action — who did what and
-  when.
-- **What happens when you use it:** entries are listed 20 per page; nothing can be changed.
-- **UI elements:** **Activity table** (Date/Time, Admin, Action); **"Previous"** /
-  **"Next"** pagination (hidden when there's only one page) with a "Page X of Y (N entries)"
-  indicator.
-- **Recovery & troubleshooting:** there's no retry button — re-navigate or change pages to
-  re-query.
-- **Related:** Login History, and every admin page whose changes are recorded here.
-
-#### Tasks (admin)
-- **Route/URL:** /admin/tasks
-- **How to reach it:** sidebar **Tasks** (position 5).
-- **Required permission:** needs View permission for Tasks. Add needs Create; Active
-  toggle/Edit needs Update; Delete needs Delete.
-- **Purpose:** create and manage operational tasks assigned to kiosk devices — one-time or
-  recurring on chosen weekdays, with priority levels. These become the to-do items agents
-  see on the agent Tasks page.
-- **What happens when you use it:** the list can be filtered by title, device, and type, and
-  shows 20 per page. When you create a task you can snapshot "select all devices" or pick
-  specific devices. Editing lets you change content, priority, and recurring days, or toggle
-  active. Deleting a task that already has scheduled instances soft-deletes it (otherwise it
-  is fully removed). Clicking a row opens the task detail.
-- **UI elements:** **"Add Task"** (*top-right*); **Filters** (Title, Device, Type
-  "All/One-time/Recurring", Total: N); **Table** (Title + description, Device, Type,
-  Recurring days, Priority badge, **Active** Switch, Created, Actions **Edit**/**Delete**);
-  **Add Task dialog** (Title, Description, Priority, Type, Recurring days picker, Devices
-  section with a "Select all devices" snapshot + multi-device selector); **Edit dialog**
-  (Type + device locked).
-- **Recovery & troubleshooting:** the Active toggle pauses a task without deleting it.
-  Deletes that find existing instances soft-delete.
-- **Related:** Task Detail, Devices, Agents.
-
-#### Task Detail (scheduled instances)
-- **Route/URL:** /admin/tasks/[taskId]
-- **How to reach it:** click a row in the Tasks table (preserves filters/page).
-- **Required permission:** needs View permission for Tasks.
-- **Purpose:** show a task's full definition plus the list of its scheduled instances with
-  statuses and the last-acting agent.
-- **UI elements:** **"Back to Tasks"**; a **soft-deleted banner** (conditional); a
-  **Summary** card (title, status badges, description, device, recurring days, timestamps);
-  a **Scheduled Instances** card with a **Status filter** (Pending/Draft/Completed/
-  Cancelled), a table (Task ID first 12 characters, Status, Last Agent, Created, Updated,
-  Submitted, Actions), and **"View Details"** (eye) for "completed" instances; **Pagination**
-  20 per page.
-- **Related:** Tasks list (parent), Scheduled Instance Detail (child).
-
-#### Scheduled Task Detail (task response)
-- **Route/URL:** /admin/tasks/[taskId]/[scheduledId]
-- **How to reach it:** "View Details" on a completed scheduled instance.
-- **Required permission:** needs View permission for Tasks. Image deletion needs Update
-  permission for Tasks.
-- **Purpose:** show one completed instance's agent response, attached evidence images, the
-  task definition, the responding agent's details, and submission metadata.
-- **UI elements:** **"Back to Task"**; **Agent Response** card; **Attached Images** card
-  (thumbnail grid; click to preview; hover **"Delete image"** (red) with a destructive
-  confirmation — an irreversible removal from storage); **Image preview dialog**; **Task
-  Details**, **Agent Details**, and **Submission** cards.
-- **Recovery & troubleshooting:** image deletion is irreversible; failed deletes show a
-  toast and keep the confirmation open.
-- **Related:** Task Detail (parent), Tasks, Agents.
-
----
-
-### F. Integrations & access tokens
-
-#### External API Management
-- **Route/URL:** /admin/external-api
-- **How to reach it:** sidebar **External API** (position 18).
-- **Required permission:** needs View permission for External API. Create needs Create;
-  toggle/update/regenerate needs Update; deleting clients/scopes needs Delete.
-- **Purpose:** manage machine-to-machine API access — partner "clients" with bearer tokens,
-  scopes, allowed IPs, and device mappings — plus a registry of available scopes.
-- **When an admin uses it:** onboard a property-management or integration partner,
-  scope/limit their token, restrict by IP and device, rotate or revoke tokens, or pause
-  access during incidents.
-- **What happens when you use it:** new and regenerated tokens are shown to you **exactly
-  once** — copy them immediately.
-- **UI elements:**
-  - **Tabs:** **"API Clients"** / **"Scopes Registry"**.
-  - **API Clients tab:** **Search clients**; **"New Client"** (needs Create); **Clients
-    table** (Name + contact email, **Status** Switch/badge, Devices count, Token prefix,
-    Scopes badges, Created, Actions **"Manage"** / **"Delete"** (requires typing the client
-    name to confirm)).
-  - **Create client dialog:** **Name**, **Contact Email**, **Description**, scopes picker
-    (per-scope checkboxes + Select All/Clear), **Allowed IPs** (comma-separated IPs/CIDRs;
-    empty = any). Leads to the token-shown-once dialog.
-  - **Manage client sheet:** Client Info (+ **"Save Info"**); Mapped Devices (Select
-    All/Clear, add device, **"Save Devices"**); API Token (current prefix, last-regenerated
-    time, + **"Regenerate"** — destructive confirmation requiring the client name; the new
-    token is shown once).
-  - **"Token Created — Copy It Now" dialog:** the read-only token, **"Copy"**, guidance to
-    send it as a bearer token in the Authorization header, **"I've saved it — Close"**.
-  - **Scopes Registry tab:** **"Add Scope"** (**Key** lowercase plus colon/dash/underscore,
-    **Description**); **Scopes table** (Key, Description, Created, **"Delete"** — shows live
-    usage and requires typing the key; requests using that scope are then refused).
-- **Recovery & troubleshooting:** deactivate (instead of delete) to pause access reversibly.
-  Regenerate to rotate a leaked token (the old one dies instantly, the new one is shown
-  once). Deleting a client or scope is permanent.
-- **Related:** Extension Tokens (a separate token surface), Devices, the permission system.
-
-#### Extension Tokens
-- **Route/URL:** /admin/extension-tokens
-- **How to reach it:** sidebar **Extension Tokens** (position 16).
-- **Required permission:** needs View permission for Extension Tokens. Revoke needs the
-  Delete permission for Extension Tokens.
-- **Purpose:** view and revoke the Chrome-extension tokens that link the Kiotel
-  property-management autofill browser extension to specific devices/agents.
-- **What happens when you use it:** revoking a token invalidates it immediately on the
-  system side.
-- **UI elements:** **Search** input; **Tokens table** (Device (name/ID + location), Agent
-  (name + ID, or "—"), Linked At, Issued IP, Actions); **"Revoke"** (red ban icon,
-  destructive, requires typing the device ID; the extension loses access immediately and the
-  user must re-link).
-- **Recovery & troubleshooting:** the affected user recovers by re-linking the extension
-  (signing in again). The typed-device-ID requirement guards against accidental revocation.
-- **Related:** the extension consent screen (issues these tokens), External API Management,
-  Devices/Agents.
-
----
-
-### G. Login & access screens (shared)
-
-#### Admin Login
-- **Route/URL:** /admin/login
-- **How to reach it:** the admin entry point; reached when an unauthenticated admin opens
-  any /admin page.
-- **Purpose:** authenticate an administrator with **email + password** and grant access to
-  the admin panel (single step — no device selection).
-- **What happens when you use it:** a successful sign-in takes you to the admin overview.
-  Too many failed attempts are rate-limited.
-- **UI elements:** **Email**, **Password**, **"Sign In"** ("Signing in…" while loading),
-  inline error text (including "Too many failed attempts. Please wait 10 minutes…").
-- **Troubleshooting:** re-submit after correcting credentials; rate-limited admins wait
-  about 10 minutes. Change your own credentials later on **Settings → Admin Account**.
-
-#### Agent Login (Phase 1)
-- **Route/URL:** /login
-- **How to reach it:** the default entry point for agents; unauthenticated users are
-  redirected here (including from /select-device and the extension consent screen).
-- **Purpose:** authenticate an agent with **Agent ID + password** only, producing an
-  initial sign-in that isn't yet tied to a device, then move on to device selection.
-  Handles new-fingerprint authorization, lockouts, deactivation, and geo-blocks.
-- **What happens when you use it:** the page computes a browser fingerprint and signs you
-  in. On success you proceed to device selection. Other outcomes: "pending" (awaiting admin
-  authorization — the page keeps checking until it's approved or discarded), "deactivated",
-  "locked" (with an unlock time), and "geo-blocked".
-- **UI elements:** **Agent ID**, **Password** (with a show/hide toggle), **"Sign In"**;
-  inline error; state panels — **Pending** ("Waiting for authorization…" + Cancel),
-  **Deactivated** (+ Try Again), **Locked** (with unlock time + Try Again), **Geo-blocked**
-  (+ Try Again).
-- **Troubleshooting:** each terminal state offers Cancel/Try Again. A pending authorization
-  resolves automatically once an admin approves it in **Login History**. Lockouts clear
-  after the stated time. Rate limiting shows the 10-minute wait message.
-- **Related:** /select-device (phase 2), Admin Login History/Authorization, Settings →
-  Auto-Authorization & geolocation.
-
-#### Select Device (Phase 2)
-- **Route/URL:** /select-device
-- **How to reach it:** automatically after a successful agent login (or after admin approval
-  of a pending login); also the destination of the top-bar **Switch Device** button.
-- **Purpose:** pick which assigned device to operate, swapping your initial sign-in for one
-  tied to that device. Doubles as the device-switch screen.
-- **What happens when you use it:** your assigned devices, their online status, and your last
-  device are kept up to date (refreshed about every 5 seconds). Picking a device ties your
-  sign-in to that device and takes you into the app. Errors map to friendly messages such as your
-  account being locked, no assignment to that device, or the device not being found.
-- **UI elements:** header (Kiotel logo, "Signed in as" your Agent ID, **Logout**); heading
-  ("Switch device" / "Select a device"); a **Last used / Current device card**; **Search**
-  (autofocused, filters by ID/name, Escape/clear to empty); **Device cards grid** (name, ID,
-  a status dot showing Connected/Not connected; online devices sorted first; click to
-  select).
-- **States:** skeleton cards while loading; error "Could not load your devices" +
-  **"Retry"**; empty "No devices assigned" + Logout; "No devices match…" for an empty search.
-- **Troubleshooting:** **Retry** re-runs the device query; the roughly 5-second refresh keeps
-  status fresh. Selection failures show a specific reason. Logout returns you to /login.
-
-#### Extension Authorize (consent screen)
-- **Route/URL:** /oauth/authorize
-- **How to reach it:** opened by the Kiotel property-management autofill Chrome extension
-  during its secure linking flow. If the agent isn't logged in, it redirects to /login and
-  returns afterward.
-- **Purpose:** a consent screen where the signed-in agent authorizes the browser extension
-  to bind to the current device and receive a fresh token.
-- **What happens when you use it:** the screen validates the request and loads the device +
-  agent context. **Authorize** completes the link and redirects back to the extension;
-  **Cancel** returns an access-denied result to the extension.
-- **UI elements:** header ("Link Kiotel PMS Autofill"); **Context panel** (Device + "Signed
-  in as"); a security note (authorizing revokes any previous binding for this device);
-  **"Cancel"** / **"Authorize"** ("Authorizing…"); an error banner for invalid
-  parameters/context.
-- **Troubleshooting:** validation failures hide the Authorize button — restart from the
-  extension with correct parameters. Re-authorizing supersedes any prior binding for the
-  device.
-- **Related:** /admin/extension-tokens (view/revoke the issued token), /login (re-auth),
-  Devices/Agents.
-
----
-
-<a id="part4"></a>
-
-## Part 4 — Kiosk Features & Hardware Behavior
+## Part 3 — Kiosk Features & Hardware Behavior
 
 > This explains, in plain language, what physically happens on the kiosk when a front-desk
 > agent uses each feature, what the hardware does, what statuses the agent sees, and how
 > things recover when something goes wrong. Agents never type any of this — but knowing it
 > lets a help chatbot answer questions like "what does Dispense actually do?" or "why did
 > the scanner fail?".
->
-> For the deeper hardware detail — the actual device models, status and error tables, image
-> sizes, and exact limits — see the hardware-reference document. For the device
-> configuration that selects and tunes this hardware (the Settings fields, simulation mode,
-> licensing, updates, boot sequence), see the device-configuration-and-lifecycle document.
 
 ---
 
-### Part 1 — How an agent's action reaches the kiosk
+### 1. How an agent's action reaches the kiosk
 
 When an agent clicks a button on the dashboard, the action travels over a live connection
 to the selected kiosk. The kiosk performs the action on its physical hardware and reports
@@ -1925,7 +1145,7 @@ back as things happen.
 
 ---
 
-### Part 2 — What each feature does
+### 2. What each feature does
 
 #### Cash dispenser / recycler
 
@@ -1933,16 +1153,14 @@ What the hardware does: this is a cash recycler that accepts banknotes, holds th
 sorts them by denomination into internal storage, and can pay notes back out. It tracks how
 many notes of each denomination are stored.
 
-Normal success flow:
-- The agent connects the cash device. Once it is ready, it loads its denomination settings
-  and reports its current contents and levels.
-- For a cash-in, the guest is shown an on-screen guide for where to insert the bill. As each
-  note is inserted, the kiosk accepts it, sorts it into storage, and updates the running
-  total. When the collected amount reaches the requested amount, it stops on its own.
-- For a cash-out (payout), the kiosk dispenses the requested amount note by note and reports
-  when the payout is complete.
-- There is also a simple on-screen money display the agent can show the guest (deposit,
-  collected, amount due, refund) — this is just a display, not a hardware action.
+Normal success flow: the agent connects the cash device. Once it is ready, it loads its
+denomination settings and reports its current contents and levels. For a cash-in, the
+guest is shown an on-screen guide for where to insert the bill. As each note is inserted,
+the kiosk accepts it, sorts it into storage, and updates the running total. When the
+collected amount reaches the requested amount, it stops on its own. For a cash-out
+(payout), the kiosk dispenses the requested amount note by note and reports when the payout
+is complete. There is also a simple on-screen money display the agent can show the guest
+(deposit, collected, amount due, refund) — this is just a display, not a hardware action.
 
 What can go wrong and what the agent sees: messages such as "Cash device is not open" (it
 needs to be connected first) or "Cash device already in transaction" (a cash-in or cash-out
@@ -2097,9 +1315,9 @@ prints again.
 
 What it does: the agent can start a video call with the guest on the kiosk. The kiosk opens a
 dedicated, fresh video window, joins the call, and connects audio recording. During the call,
-the hotel-name banner, fill-screen, and captions are forced on (and revert by themselves
-after about a minute if turned off). The agent can also start and stop recording the
-conversation.
+some on-screen features (such as the hotel-name banner, fill-screen, and captions) can be
+forced on and revert by themselves after about a minute if turned off. The agent can also
+start and stop recording the conversation.
 
 Normal success flow: the agent sees the call progress through "joining", then "waiting" (in
 the lobby), then "joined". Once joined, the on-screen features (banner, fill-screen, captions)
@@ -2124,7 +1342,7 @@ start of each new call.
 
 ---
 
-### Part 3 — How the kiosk reports its status (where the dashboard indicators come from)
+### 3. How the kiosk reports its status (where the dashboard indicators come from)
 
 The dashboard's indicators are built from the status the kiosk reports as events happen,
 rather than from a constant heartbeat. In plain terms:
@@ -2133,9 +1351,9 @@ rather than from a constant heartbeat. In plain terms:
   when it shuts down. The online/offline dot on the dashboard comes from this plus whether
   the live connection is currently up.
 - App version: the kiosk reports its installed version when it connects, so the dashboard
-  always shows the current version of each device.
-- License health: the kiosk periodically confirms its license is still valid. If the backend
-  invalidates it, the kiosk clears the license and restarts.
+  always shows the current version of the device.
+- License health: the kiosk periodically confirms its license is still valid. If the license
+  is invalidated, the kiosk clears the license and restarts.
 - "Screen blocked" alert: the kiosk watches whether another window is covering its screen and
   raises a Kiosk Alert when it is covered (and tries to bring itself back to the front). This
   drives the alert banner the agent sees.
@@ -2162,7 +1380,7 @@ each action.
 
 ---
 
-### Part 4 — Recovery behaviors at a glance (kiosk side)
+### 4. Recovery behaviors at a glance (kiosk side)
 
 - Connection: the kiosk reconnects to the backend automatically and keeps retrying
   indefinitely. On reconnect it re-announces itself, re-syncs its settings, and reports any
@@ -2194,16 +1412,13 @@ each action.
 
 ---
 
-<a id="part5"></a>
+<a id="part4"></a>
 
-## Part 5 — Troubleshooting & Recovery
+## Part 4 — Troubleshooting & Recovery
 
-> Symptom-first guide for the help chatbot. Each entry is Symptom, then Likely cause, then
-> What to do. Start with the universal flow; then jump to the matching feature. For full
-> page detail see the Agent Dashboard guide and the Admin Dashboard guide; for kiosk
-> hardware behavior see the Kiosk Commands and Hardware guide; for deep hardware status and
-> device configuration see the Hardware Reference guide and the Device Configuration and
-> Lifecycle guide.
+> Symptom-first guide for the help chatbot, scoped to the agent experience. Each entry is
+> Symptom, then Likely cause, then What to do. Start with the universal flow; then jump to
+> the matching feature.
 
 ---
 
@@ -2264,19 +1479,12 @@ the sidebar Observer-Mode footer, or the Quick Actions panel.
 
 My control request got no response / was denied.
 Requests auto-expire after about 30 seconds. Toast outcomes: denied; timeout ("no response,
-you can request again"); busy ("another request is already pending"); or superseded ("an
-admin changed device control"). You can request again. As a last resort, an admin can
-force-assign control via Admin, then Assignments, then "Give Control".
+you can request again"); busy ("another request is already pending"); or superseded ("device
+control was changed"). You can request again.
 
 I lost control unexpectedly.
-Either another agent was approved or force-given control (you'll see a toast and drop to
-observer), or an admin used "Give Control". Request access again to resume.
-
-Admin: an agent is stuck/unresponsive and won't release a device.
-Admin, then Assignments, then "Give Control" (the blue Give-Control icon on that
-agent/device row, or assign to a different agent) forcibly reassigns control and demotes the
-prior controller. It's disabled if the target agent isn't currently connected to that
-device.
+Either another agent was approved for control (you'll see a toast and drop to observer), or
+control was reassigned some other way. Request access again to resume.
 
 ---
 
@@ -2287,8 +1495,8 @@ That page is transaction-gated and there's no active session. Press "Start Trans
 the top bar first.
 
 "Transaction session timed out."
-Sessions auto-end after the configured timeout (default 30 minutes; set by an admin in
-Admin, then Settings, then Auto-timeout). Start a new transaction to continue.
+Sessions auto-end after the configured timeout (default 30 minutes). Start a new transaction
+to continue.
 
 "Active session exists" conflict dialog when I press Start Transaction.
 A session is already running on this device (possibly started by another agent). Choose
@@ -2446,10 +1654,9 @@ real, the kiosk auto-retries with a fresh profile; otherwise Retry or End and re
 The link/code is malformed. Paste a valid video call link or code.
 
 A kiosk display toggle won't stay off.
-By design — Hide Call Controls, Show Hotel Name, Fill Screen (and Captions when enforced)
-are forced ON for the call and auto-revert about 60 seconds after being switched off (while
-you're in control). An admin sets the enforcement per device (Admin, then Devices, then
-Device Settings and Rules).
+Some toggles (Hide Call Controls, Show Hotel Name, Fill Screen, and sometimes Captions) may
+be enforced for the call and auto-revert about 60 seconds after being switched off (while
+you're in control). This is a per-device configuration.
 
 Guest is requesting assistance (sound + browser notification).
 The guest tapped for help; enable the video display and respond.
@@ -2469,8 +1676,7 @@ The device's Indicator Lights option is set to "None". Enable it in Settings (ch
 light-controller option).
 
 Channel names show generic "Channel 1…12".
-The label mapping isn't configured. An admin sets labels and channel mappings under Admin,
-then Lights.
+The label mapping for this fleet isn't configured. Ask a fleet manager to set channel labels.
 
 ---
 
@@ -2498,8 +1704,7 @@ device is online.
 
 Send to Kiosk is disabled.
 No template selected, no active transaction, or you lack the Send-to-Kiosk permission. Pick a
-template, start a transaction, or ask an admin to grant the permission (Admin, then
-Assignments).
+template, start a transaction, or ask your administrator to grant the permission.
 
 No templates appear in the dropdown.
 Only templates that have at least one field can be sent. Create fields in the Field Editor
@@ -2517,8 +1722,8 @@ The underlying file may have been removed from File Storage — confirm it still
 ### 13. Notifications modal won't close
 
 A full-screen notification is blocking the screen with no close button.
-This is a forced-acknowledgement admin notification. Scroll the body to the very bottom, then
-click "I Acknowledge". Each acknowledgement reveals the next queued notice. (It can't be
+This is a forced-acknowledgement broadcast notification. Scroll the body to the very bottom,
+then click "I Acknowledge". Each acknowledgement reveals the next queued notice. (It can't be
 dismissed with Esc or by clicking outside.)
 
 ---
@@ -2526,29 +1731,25 @@ dismissed with Esc or by clicking outside.)
 ### 14. Login & access (agents)
 
 Login phase 1 keeps me on "Waiting for authorization…".
-Your browser or network is new and needs admin approval. It resolves automatically once an
-admin approves it in Admin, then Login History (or Authorization). With Auto-Authorization
-enabled in Admin Settings, new devices/browsers are trusted automatically (geolocation still
-applies).
+Your browser or network is new and needs approval. It resolves automatically once that
+approval happens.
 
 "Account Locked" with an unlock time.
-Too many failed logins. Wait until the stated unlock time, or ask an admin to "Unlock" you on
-Admin, then Agents (which also resets the failed-login count).
+Too many failed logins. Wait until the stated unlock time, or ask your administrator to
+unlock the account.
 
 "Account Deactivated."
-An admin disabled your account. Ask an admin to re-activate it (Admin, then Agents, then the
-Active toggle).
+Your account was disabled. Ask your administrator to re-activate it.
 
 "Location Blocked" (geo-blocked).
-You're outside the allowed area. You must sign in from an allowed location (admins manage
-these on Admin, then Allowed Locations).
+You're outside the allowed area. You must sign in from an allowed location.
 
 "Too many failed attempts. Please wait 10 minutes…" (rate-limited).
 Wait about 10 minutes and retry.
 
 I logged in but can't reach a device / "No devices assigned."
-On the device-selection screen you can only pick devices you're assigned to. Ask an admin to
-add an assignment (Admin, then Assignments). Selection can also fail with: "locked by an
+On the device-selection screen you can only pick devices you're assigned to. Ask your
+administrator to add an assignment. Selection can also fail with: "locked by an
 administrator"; "no longer assigned"; or "no longer exists". Use "Retry" to re-load your
 device list (it also re-checks every few seconds).
 
@@ -2558,77 +1759,10 @@ re-acquire the device.
 
 ---
 
-### 15. Login & access (admins)
-
-Can't sign in to the admin login.
-Use your admin email and password (admin login is single-step — no device selection).
-Rate-limited admins wait about 10 minutes. Change your own credentials at Admin, then
-Settings, then Admin Account.
-
-A menu item or button is missing in the Admin Console.
-Your admin account lacks that permission (the sidebar hides features you can't view; Add,
-Edit, and Delete hide when you lack that action). A super-admin can grant it on Admin, then
-Admin Management, then Permissions.
-
-"Access denied" card when opening an admin page.
-You don't have View permission for that feature — ask a super-admin to grant it.
-
----
-
-### 16. Device authorization & licensing (admin)
-
-A kiosk shows "Pending Review" and isn't usable.
-Its hardware identity is new or changed (fresh install, hardware change, or after a secret
-rotation or re-enable). Approve it on Admin, then Authorization, then Device Requests (after
-verifying it's legitimate).
-
-I revoked a device by mistake.
-On Admin, then Devices, use "Re-enable" — this moves it back to pending review (it then still
-needs approval on the Authorization page; it does not go straight to active).
-
-A device secret leaked.
-"Rotate Secret" (one device) or "Rotate All Secrets" (every device, type "ROTATE ALL") on
-Admin, then Devices — this forces re-registration (the kiosk reappears as pending).
-
-A kiosk is on an old version / update isn't reaching it.
-On Admin, then Devices, the update icon pushes the update (blue when an update is available;
-the kiosk must be online, else it's disabled with "Kiosk offline"). For a kiosk already on
-the current version, "Force Re-update" repairs it (preserves the kiosk's configuration and
-supporting environment). The version catalog is managed under Admin, then Application
-Manager.
-
----
-
-### 17. Integrations & tokens (admin)
-
-Pause a partner integration without deleting it.
-Admin, then External API, then toggle the client "Inactive" (calls are rejected; the token
-isn't invalidated, mappings preserved). Re-activate to resume.
-
-A partner access token leaked.
-"Manage" the client, then "Regenerate" (type the client name to confirm). The old token dies
-instantly; the new one is shown only once — copy it immediately.
-
-Deleting a scope / client.
-Permanent — recreate and re-map manually. Deleting a scope makes affected features fail with
-an access-denied response for clients that used it (the dialog shows live usage; type the key
-to confirm).
-
-The Chrome extension lost access / a device was compromised.
-Admin, then Extension Tokens, then "Revoke" (type the device ID). The extension loses access
-immediately; the affected user re-links from the extension popup.
-
-The authorize page shows an error / won't let me Authorize.
-A required value is missing or mismatched. Restart the flow from the extension. If you
-weren't logged in, you were sent to the login screen and returned afterward.
-
----
-
-### 18. Reports, exports & data
+### 15. Reports & data
 
 A report looks stale.
 Transaction reports are never cached (always refetched). Change a filter or revisit the page.
-Admin Activity Log has no refresh button — re-navigate or change pages.
 
 Export failed.
 Retry the "Export XLSX"; confirm a device and filters are selected. Exports respect the date
@@ -2653,26 +1787,20 @@ These flag rejected or suspect notes — not a UI error; review the session.
 | Scanner | ID Scanner, then "Cancel Scan"; re-Start (auto re-init) |
 | Printing | Print, then take control and "Refresh Printer Options"; activate a design under Receipts |
 | Video call | Video Call, then "Retry Call" / "End Previous & Start New"; auto-recovers on crash |
-| Lights | Indicator Lights, then "Refresh"; enable in Settings; labels in Admin, then Lights |
+| Lights | Indicator Lights, then "Refresh"; enable in Settings |
 | Stuck on-screen content | Quick Actions / page "Hide" buttons |
 | Notification modal | Scroll to bottom, then "I Acknowledge" |
-| Agent locked out | Admin, then Agents, then "Unlock" |
-| Pending login/device | Admin, then Authorization / Login History, then Authorize/Approve |
-| Revoked device | Admin, then Devices, then "Re-enable", then approve in Authorization |
-| Missing admin button/page | Super-admin grants it in Admin, then Admin Management, then Permissions |
-| Leaked token | Admin, then External API "Regenerate" / Extension Tokens "Revoke" |
+| Account locked / deactivated / no devices | Contact your administrator |
 
 ---
 
-<a id="part6"></a>
+<a id="part5"></a>
 
-## Part 6 — Hardware Guide
+## Part 5 — Hardware Guide & Device Configuration
 
-> This is a plain explanation of the physical hardware inside a Kiotel kiosk, written for
-> front-desk agents, hotel admins, and the help chatbot. It describes what each device is in
-> everyday terms, what it does, what the on-screen statuses and errors mean, the limits that
-> matter, and how to recover. It does not cover dashboard commands (see the kiosk commands
-> guide) or the settings that pick and tune this hardware (see the device configuration guide).
+> A plain-language reference for the physical hardware inside a Kiotel kiosk and the
+> configuration fields on the agent-side Settings page. Written for front-desk agents,
+> and the help chatbot. It does not cover fleet-wide administration.
 
 ---
 
@@ -2793,9 +1921,9 @@ There are different scanner and text-reading setups, chosen in Settings:
 The scanner's job is to capture a high-resolution photo of the document. It does not decide
 what the document is or whether the guest is allowed to rent. The document type (passport,
 driver license, visa, ID card, and so on) and any compliance alerts — such as age checks,
-do-not-rent / ban flags, name mismatches, and risk scores — are all determined by the system
-and the back office, not on the kiosk itself. When the "GuestBan" option is used, the ban and
-risk alerts come from that screening service.
+do-not-rent / ban flags, name mismatches, and risk scores — are all determined by the system,
+not on the kiosk itself. When the "GuestBan" option is used, the ban and risk alerts come from
+that screening service.
 
 If a document has two sides, the system handles the front and back automatically: after the
 first side is captured, the next capture is treated as the second side.
@@ -2811,9 +1939,9 @@ chosen as "U10" or "None" (none meaning no light board installed).
 
 #### How it works for users
 Each light channel can be turned on or off. The names for each channel (what each light means)
-are set up by an admin on the dashboard, not on the kiosk. The helper program that runs the
-board looks after itself: if it stops responding or a leftover copy is in the way, it cleans up
-and restarts automatically, then continues once it is ready again.
+are configured centrally, not on the kiosk. The helper program that runs the board looks after
+itself: if it stops responding or a leftover copy is in the way, it cleans up and restarts
+automatically, then continues once it is ready again.
 
 ---
 
@@ -2877,133 +2005,57 @@ live information.
 
 ---
 
-<a id="part7"></a>
+### 9. Device Settings (what each field on the agent Settings page does)
 
-## Part 7 — Device Configuration & Lifecycle
+The agent Settings page (/dashboard/settings) is grouped into sections. Below is what each
+field does, in plain terms.
 
-> A plain-language guide to how a kiosk is set up, how it picks the right hardware,
-> and how it starts, gets approved, updates itself, and runs in test mode. This is the
-> companion to the dashboard "Settings" pages: every field an agent edits on the agent
-> Settings page (and an admin manages on the Devices page) is described here. For the
-> physical hardware those choices select, see the hardware reference (06-hardware-reference.md).
-
-A kiosk runs on a single dedicated machine at the front desk. It loads its settings from
-the dashboard each time it starts, so changing a setting in the dashboard changes how that
-kiosk behaves.
-
----
-
-### 1. Device Settings (what each field does)
-
-The Settings page is grouped into sections. Below is what each field does, in plain terms.
-
-#### 1.1 Hotel & contact information
-- "Device Name" — the kiosk's label so you can recognize it in the dashboard. Changing it
-  does not restart any hardware.
-- "Agent Name" / "Agent Email" — the assigned agent's name and contact.
-- "Location" — the site or branch this kiosk belongs to.
+#### 9.1 Hotel & contact information
 - "Hotel Name" — the hotel name shown to guests. It also appears live on screen during a
   video call as the hotel-name banner.
 - "Support Email" / "Phone" — the support contact shown to guests if they need help.
 - "Check Out Time" / "Breakfast Time" — the times displayed to guests on screen.
 - "Body Notes" / "Footer Notes" — free-text messages shown to guests on screen and on receipts.
 
-#### 1.2 WiFi
+#### 9.2 WiFi
 - "WiFi Name" — the guest WiFi network name shown on screen.
 - "WiFi Password" — the guest WiFi password shown on screen.
 
-#### 1.3 Hardware ports
+#### 9.3 Hardware ports
 - "Cash Port" — which port the cash machine is connected to.
 - "Key Port" — which port the key dispenser is connected to.
 - "Baud Rate" — the connection speed for the key dispenser (the cash machine manages its own
   connection speed and does not use this).
 
-#### 1.4 Peripheral choices
+#### 9.4 Peripheral choices
 - "Scanner Option" — which ID scanner this kiosk uses. Pick the model that matches the
-  scanner physically connected to the machine (the available models are listed in the
-  hardware reference).
-- "Cash Dispenser Type" — which cash machine model this kiosk uses. See section 2 for the
-  two choices and how they differ.
+  scanner physically connected to the machine.
+- "Cash Dispenser Type" — which cash machine model this kiosk uses. "NV4000" is the
+  4-recycler model (set four bill denominations, Recycler 1–4); "NV200" is the payout-store
+  model (up to seven payout denominations; matching bills are kept for change and the rest
+  go to the cashbox).
 - "OCR Option" — which document-reading service is used to read scanned IDs. Choose from the
-  options offered in the dropdown. If left blank, the system uses its default.
+  options offered in the dropdown. If left blank, the system uses its default. "GuestBan" is
+  disabled with "(key not configured)" until that integration is set up centrally.
 - "Indicator Lights" — choose "U10" if the kiosk has the indicator-light bar attached, or
   "None" if it does not. Choosing "None" turns off the Lights page for that kiosk.
 
-#### 1.5 Behavioral toggles
-These are the toggles in the admin "Device Settings and Rules" dialog. They change on-screen
-behavior during video calls and never restart any hardware.
-- "Enforce Fill Screen" — keeps Fill-Screen turned on during calls. If an agent turns it off
-  mid-call, it automatically turns back on after about a minute. (On by default.)
-- "Enforce Captions" — same idea, for captions. (On by default.)
-- "Enforce Tap For Assistance" — shows the "Tap For Assistance" prompt at the bottom of the
-  idle screen during calls. (On by default.)
-
-#### 1.6 Cash denomination routes & cashbox
-How cash is sorted depends on the "Cash Dispenser Type" you chose (see section 2):
+#### 9.5 Cash denomination routes & cashbox
+How cash is sorted depends on the "Cash Dispenser Type" you chose:
 - For the 4-recycler model: "Recycler 1–4 denominations" — the bill value loaded into each
   of the four storage cassettes. These are required.
 - For the other model: up to seven payout denominations and the currency. Bills that match a
   payout denomination are kept for giving change; every other bill goes to the cashbox.
+- Cashbox Status: Cashbox Capacity, Note Count, Total Amount, and a "Reset Cashbox to Zero"
+  action are also managed from Settings.
 
-#### 1.7 Required vs optional fields
-The kiosk will not start if any required field is left blank — instead it shows a
-"Configuration Error" and returns to the login screen. The required fields are: "Device Name",
-"Agent Name", "Agent Email", "Location", "Hotel Name", "Support Email", "Phone", "WiFi Name",
-"WiFi Password", "Check Out Time", "Breakfast Time", "Body Notes", "Footer Notes", "Cash Port",
-"Key Port", "Baud Rate", "Scanner Option", and the "Recycler 1–4 denominations".
-
-Optional (the kiosk starts even if these are blank): "OCR Option", "Cash Dispenser Type",
-"Indicator Lights", "Simulation Mode", and the three "Enforce" toggles.
-
----
-
-### 2. How the kiosk picks its hardware
-
-When the kiosk starts it sets up four pieces of hardware — the ID scanner, the cash machine,
-the key dispenser, and the indicator-light bar. Each is set up independently, so if one fails
-the others still come up.
-
-- Key dispenser — always the same supported model.
-- ID scanner — chosen from your "Scanner Option".
-- Cash machine — sorts and dispenses cash according to your "Cash Dispenser Type".
-- Indicator lights — set up only if "Indicator Lights" is "U10"; if it is "None", the Lights
-  page stays off.
-- Document reading and motion detection are also prepared so the kiosk can read IDs and watch
-  for activity during calls.
-
-#### Cash Dispenser Type choices
-- "NV4000" — the 4-recycler model. It has four storage slots, so you set four bill
-  denominations ("Recycler 1–4 denominations").
-- "NV200" — the payout-store model. It supports up to seven payout denominations; matching
-  bills are kept for change and the rest go to the cashbox.
-
-The practical difference is simply how many denomination slots you configure.
-
-#### Changing settings without restarting
-When you save a setting from the dashboard, the kiosk applies it right away and only
-re-prepares the hardware affected by that change:
-- Changing "Scanner Option" re-prepares the scanner.
-- Changing "Cash Port", the "Recycler 1–4 denominations", or "Cash Dispenser Type"
-  re-prepares the cash machine.
-- Changing "Key Port" or "Baud Rate" re-prepares the key dispenser.
-- Changing "Indicator Lights" re-prepares the light bar.
-- Changing "Simulation Mode", "Device Name", or the "Enforce" toggles takes effect without
-  re-preparing any hardware.
-
-While the kiosk is in Simulation Mode, hardware is never re-prepared.
-
----
-
-### 3. Simulation Mode
-
-"Simulation Mode" lets you run and test a kiosk without any real hardware attached.
-
-- When it is on, every device is replaced with a simulated version (cash machine, key
-  dispenser, light bar, and the matching simulated ID scanner), and a "Simulation Panel"
-  opens — a small always-on-top control window for driving the fake hardware. Everything else
-  behaves normally; only the physical devices are faked.
-- Who can turn it on: an agent can toggle "Simulation Mode" on the Settings page if they have
-  the simulation permission; otherwise it is set by an admin.
+#### 9.6 Simulation Mode
+"Simulation Mode" lets you run and test a kiosk without any real hardware attached. An agent
+can toggle "Simulation Mode" on the Settings page if they have the simulation permission.
+When it is on, every device is replaced with a simulated version (cash machine, key
+dispenser, light bar, and the matching simulated ID scanner), and a "Simulation Panel" opens
+— a small always-on-top control window for driving the fake hardware. Everything else
+behaves normally; only the physical devices are faked.
 
 What you can do from the Simulation Panel:
 - Cash machine — connect or disconnect; watch live transaction and storage status; press
@@ -3017,71 +2069,29 @@ What you can do from the Simulation Panel:
 
 ---
 
-### 4. Device approval & re-approval
+### 10. Startup, updates & approval (what an agent may see)
 
-A kiosk is tied to the specific physical machine it runs on, and an admin must approve that
-machine before it can operate. This keeps a kiosk's access bound to one trusted computer.
-
-- If the machine's hardware changes — for example a new main board, a new disk, or the
-  operating system is reinstalled — the kiosk is no longer recognized as the same machine and
-  drops to "Pending Review" on the Authorization page. An admin must re-approve it before it
-  can run again.
-- If an admin revokes a device or resets its access, the kiosk is signed out immediately and
-  returns to the login screen.
-
----
-
-### 5. Approval & validation while running
-
-- When a kiosk starts, it checks in and asks to be recognized. If it has not been approved
-  yet, it shows a "Pending Approval" screen. If it has been revoked or is not authorized, it
-  clears its access and returns to the login screen.
-- While running, the kiosk keeps confirming with the dashboard that it is still authorized, so
-  a revoked or reset device is caught quickly.
-- If an admin revokes or resets a running kiosk, the kiosk shows a message that its access has
-  been removed and that the application will restart, then it restarts and lands on the login
-  screen.
-
----
-
-### 6. Updates
-
-- Pushing an update: an admin starts an update from the Devices page. The kiosk then closes
-  itself and reinstalls the new version, then reopens.
-- Administrator rights: installing an update may require administrator permission on the
-  machine. The kiosk handles getting that permission as part of the update.
-- Mandatory updates: whether an update is required or optional is decided by the system, not
-  by the kiosk.
-- Some updates also reinstall the document-reading (OCR) components as part of the same update.
-
----
-
-### 7. Startup sequence
-
-When a kiosk starts, a splash screen shows progress while it works through these steps:
-
-1. Loads its settings.
-2. Makes sure only one copy of the kiosk is running.
-3. Checks that it is an approved device. If it has never been set up, it goes to the login
-   screen. If it is still "Pending Review", it shows the "Pending Approval" screen. If it has
-   been revoked or is not authorized, it clears its access and returns to login.
-4. Loads its device settings from the dashboard.
-5. Validates the required configuration (see section 1.7). If any required field is blank, it
-   shows a "Configuration Error" and returns to login.
-6. Prepares the document-reading components if an OCR option is set, and prepares motion
-   detection.
-7. Warms up the ID reader so the first scan is fast.
-8. Shows the main kiosk screen and connects to the dashboard, then begins its normal
-   on-screen behavior.
-
-While running, the kiosk also keeps an eye on the screen and, if another window covers it,
-notifies the dashboard and tries to bring itself back to the front.
+- The kiosk is tied to the specific physical machine it runs on and must be approved before
+  it can operate. If the machine's hardware changes significantly, or access is revoked, the
+  kiosk will show a "Pending Approval" or login screen until it's re-approved — this is not
+  something an agent can fix locally.
+- Software updates are pushed centrally: when an update runs, the kiosk closes itself,
+  reinstalls the new version, and reopens. Some updates also reinstall the document-reading
+  (OCR) components as part of the same update.
+- Startup sequence (what the splash screen is doing): the kiosk loads its settings, confirms
+  it's an approved device, validates required configuration (see section 9), prepares
+  document-reading and motion-detection components, warms up the ID reader, then shows the
+  main kiosk screen and connects to the dashboard. If a required Settings field is blank, it
+  shows a "Configuration Error" and returns to login — an agent should check Settings for
+  missing required fields in that case.
+- Changing a setting from the agent Settings page applies right away and only re-prepares the
+  hardware affected by that change (e.g. changing "Scanner Option" re-prepares just the
+  scanner). Changing "Simulation Mode", "Hotel Name"-type fields, or display toggles takes
+  effect without re-preparing any hardware. While in Simulation Mode, hardware is never
+  re-prepared.
 
 ---
 
 ### See also
-- Agent Settings page — where these fields are edited (agent Settings page doc).
-- Hardware reference (06-hardware-reference.md) — the physical scanners, cash machines, key
-  dispensers, and light bars these choices select.
-
----
+- Part 2, section D ("Settings (device configuration)") — the agent-facing Settings page UI.
+- Part 3 — what each kiosk feature does physically when triggered from the dashboard.

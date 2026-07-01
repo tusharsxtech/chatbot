@@ -1,7 +1,7 @@
 services:
 
-  # ── Chatbot postgres ──────────────────────────────────────────────────────
-  postgres_chatbot:
+  # ── Single shared PostgreSQL (chatbot cache + RAG chunks) ─────────────────
+  postgres:
     image: pgvector/pgvector:pg16
     container_name: chatbot-postgres
     environment:
@@ -11,7 +11,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pgdata_chatbot:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U chatbot"]
       interval: 5s
@@ -19,24 +19,20 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # ── RAG postgres ──────────────────────────────────────────────────────────
-  postgres_rag:
-    image: pgvector/pgvector:pg16
-    container_name: kiotel-postgres
+  # ── Run Alembic migrations before any app starts ──────────────────────────
+  migrate:
+    build:
+      context: .
+    container_name: chatbot-migrate
+    command: alembic upgrade head
+    env_file:
+      - .env
     environment:
-      POSTGRES_USER: rag
-      POSTGRES_PASSWORD: rag
-      POSTGRES_DB: kiotel_rag
-    ports:
-      - "5433:5432"
-    volumes:
-      - pgdata_rag:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U rag -d kiotel_rag"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
+      PG_DSN: postgresql://chatbot:chatbot@postgres:5432/chatbot
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
 
   # ── Kiotel Dashboard RAG API ──────────────────────────────────────────────
   kiotel_rag:
@@ -46,16 +42,17 @@ services:
     ports:
       - "8001:8000"
     env_file:
-      - ./services/kiotel_dashboard_step_guide/.env   # RAG's own .env
+      - ./services/kiotel_dashboard_step_guide/.env
     environment:
-      # override only the PG_DSN so it points to postgres_rag container
-      PG_DSN: postgresql://rag:rag@postgres_rag:5432/kiotel_rag
+      PG_DSN: postgresql://chatbot:chatbot@postgres:5432/chatbot
     volumes:
       - ./services/kiotel_dashboard_step_guide/data:/app/data
       - ./services/kiotel_dashboard_step_guide/logs:/app/logs
     depends_on:
-      postgres_rag:
+      postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -72,16 +69,17 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - .env                                   # chatbot's own .env
+      - .env
     environment:
-      # override only what needs docker network values
-      PG_DSN: postgresql://chatbot:chatbot@postgres_chatbot:5432/chatbot
+      PG_DSN: postgresql://chatbot:chatbot@postgres:5432/chatbot
       KIOTEL_RAG_URL: http://kiotel_rag:8000
     volumes:
       - ./logs:/app/logs
     depends_on:
-      postgres_chatbot:
+      postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       kiotel_rag:
         condition: service_healthy
     restart: unless-stopped
@@ -93,14 +91,16 @@ services:
     container_name: kiotel-ingest
     command: python scripts/ingest.py
     env_file:
-      - ./services/kiotel_dashboard_step_guide/.env   # RAG's own .env
+      - ./services/kiotel_dashboard_step_guide/.env
     environment:
-      PG_DSN: postgresql://rag:rag@postgres_rag:5432/kiotel_rag
+      PG_DSN: postgresql://chatbot:chatbot@postgres:5432/chatbot
     volumes:
       - ./services/kiotel_dashboard_step_guide/data:/app/data
     depends_on:
-      postgres_rag:
+      postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     profiles:
       - ingest
 
@@ -111,18 +111,19 @@ services:
     container_name: kiotel-evaluate
     command: python scripts/evaluate.py
     env_file:
-      - ./services/kiotel_dashboard_step_guide/.env   # RAG's own .env
+      - ./services/kiotel_dashboard_step_guide/.env
     environment:
-      PG_DSN: postgresql://rag:rag@postgres_rag:5432/kiotel_rag
+      PG_DSN: postgresql://chatbot:chatbot@postgres:5432/chatbot
     volumes:
       - ./services/kiotel_dashboard_step_guide/data:/app/data
       - ./services/kiotel_dashboard_step_guide/evaluation_results:/app/evaluation_results
     depends_on:
-      postgres_rag:
+      postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     profiles:
       - evaluate
 
 volumes:
-  pgdata_chatbot:
-  pgdata_rag:
+  pgdata:

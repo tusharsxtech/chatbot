@@ -1,10 +1,10 @@
+import concurrent.futures
 from typing import List
 
 from configs.settings import get_settings
 from configs.logging_config import get_logger
 from src.retrieval.vector_store import VectorStore
 from src.retrieval.bm25_index import BM25Index
-from src.retrieval.reranker import get_reranker
 
 logger = get_logger(__name__)
 
@@ -17,19 +17,21 @@ class HybridRetriever:
         self.top_k_rerank = settings.top_k_rerank
         self.vector_store = VectorStore()
         self.bm25_index = BM25Index()
-        self.reranker = get_reranker()
 
     def retrieve(self, query: str) -> List[dict]:
-        dense_results = self.vector_store.similarity_search(
-            query, top_k=self.top_k_retrieval
-        )
-        bm25_results = self.bm25_index.search(
-            query, top_k=self.top_k_retrieval
-        )
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            dense_future = executor.submit(
+                self.vector_store.similarity_search, query, top_k=self.top_k_retrieval
+            )
+            bm25_future = executor.submit(
+                self.bm25_index.search, query, top_k=self.top_k_retrieval
+            )
+            dense_results = dense_future.result()
+            bm25_results = bm25_future.result()
 
         fused = self._reciprocal_rank_fusion(dense_results, bm25_results)
 
-        reranked = self.reranker.rerank(query, fused, top_k=self.top_k_rerank)
+        reranked = fused[:self.top_k_rerank]
         logger.info(
             "retrieval_complete",
             dense=len(dense_results),

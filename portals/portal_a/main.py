@@ -9,6 +9,7 @@ import threading
 from collections import defaultdict, deque
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.responses import StreamingResponse
 import json
@@ -23,6 +24,16 @@ from services.cache.warmer import warm
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Portal A - Intelligent Chatbot", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 
 _static_path = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=_static_path), name="static")
@@ -170,8 +181,8 @@ async def chat(req: ChatRequest, request: Request):
         frontend_version=req.frontend_version or "v1",
     )
 
-    def generate():
-        for event in run_orchestrator_stream(state):
+    async def generate():
+        async for event in run_orchestrator_stream(state):
             yield f"data: {event}\n\n"
         yield "data: [DONE]\n\n"
 

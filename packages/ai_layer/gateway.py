@@ -1,6 +1,7 @@
 import sys
 sys.path.insert(0, "/app")
 
+import asyncio
 import os
 import time
 import json
@@ -17,14 +18,34 @@ logging.basicConfig(level=logging.DEBUG)
 
 MODEL = os.getenv("LLM_MODEL", "alibaba-qwen3-32b")
 
+_LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://inference.do-ai.run/v1")
+_LLM_API_KEY = os.getenv("LLM_API_KEY")
+
 client = ChatOpenAI(
     model=MODEL,
     temperature=0.7,
     max_tokens=1024,
-    base_url=os.getenv("LLM_BASE_URL", "https://inference.do-ai.run/v1"),
-    api_key=os.getenv("LLM_API_KEY"),
+    base_url=_LLM_BASE_URL,
+    api_key=_LLM_API_KEY,
     timeout=60.0,
     max_retries=1,
+)
+
+_intent_client = ChatOpenAI(
+    model=MODEL, temperature=0.0, max_tokens=300,
+    base_url=_LLM_BASE_URL, api_key=_LLM_API_KEY, timeout=60.0, max_retries=1,
+)
+_rewrite_client = ChatOpenAI(
+    model=MODEL, temperature=0.0, max_tokens=200,
+    base_url=_LLM_BASE_URL, api_key=_LLM_API_KEY, timeout=60.0, max_retries=1,
+)
+_faithfulness_client = ChatOpenAI(
+    model=MODEL, temperature=0.0, max_tokens=200,
+    base_url=_LLM_BASE_URL, api_key=_LLM_API_KEY, timeout=60.0, max_retries=1,
+)
+_classify_client = ChatOpenAI(
+    model=MODEL, temperature=0.0, max_tokens=400,
+    base_url=_LLM_BASE_URL, api_key=_LLM_API_KEY, timeout=60.0, max_retries=1,
 )
 
 
@@ -94,9 +115,25 @@ class TokenBucketRateLimiter:
                 if self.tokens >= 1:
                     self.tokens -= 1
                     return True
-            if time.time() >= deadline:
+                wait_needed = (1.0 - self.tokens) / self.refill_rate
+            remaining = deadline - time.time()
+            if remaining <= 0:
                 return False
-            time.sleep(0.1)
+            time.sleep(min(wait_needed, remaining))
+
+    async def async_acquire(self, timeout=10.0):
+        deadline = time.time() + timeout
+        while True:
+            with self._lock:
+                self._refill()
+                if self.tokens >= 1:
+                    self.tokens -= 1
+                    return True
+                wait_needed = (1.0 - self.tokens) / self.refill_rate
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                return False
+            await asyncio.sleep(min(wait_needed, remaining))
 
 
 _circuit_breaker = CircuitBreaker(
@@ -115,19 +152,19 @@ RATE_LIMIT_WAIT_TIMEOUT = float(os.getenv("LLM_RATE_LIMIT_WAIT_TIMEOUT", "10"))
 LLM_REQUEST_TIMEOUT = float(os.getenv("LLM_REQUEST_TIMEOUT", "60.0"))
 
 
-def safe_invoke(messages, llm_client=None):
+async def safe_invoke(messages, llm_client=None):
     target = llm_client or client
 
     if not _circuit_breaker.allow_request():
         raise CircuitBreakerOpenError("LLM circuit breaker is open; failing fast.")
 
-    if not _rate_limiter.acquire(timeout=RATE_LIMIT_WAIT_TIMEOUT):
+    if not await _rate_limiter.async_acquire(timeout=RATE_LIMIT_WAIT_TIMEOUT):
         raise RateLimitExceededError("LLM rate limit exceeded; request throttled.")
 
     last_exc = None
     for attempt in range(MAX_RETRIES):
         try:
-            result = target.invoke(messages)
+            result = await target.ainvoke(messages)
             _circuit_breaker.record_success()
             return result
         except Exception as e:
@@ -137,12 +174,12 @@ def safe_invoke(messages, llm_client=None):
             logger.error("LLM error detail — type: %s | args: %s", type(e).__name__, e.args)
             if attempt < MAX_RETRIES - 1:
                 delay = min(MAX_BACKOFF_SECONDS, BASE_BACKOFF_SECONDS * (2 ** attempt)) + random.uniform(0, 0.25)
-                time.sleep(delay)
+                await asyncio.sleep(delay)
 
     raise LLMServiceError(f"LLM call failed after {MAX_RETRIES} attempts: {last_exc}")
 
 
-def call_llm(
+async def call_llm(
     system_prompt: str,
     messages: list[ChatMessage],
     user_input: str,
@@ -173,11 +210,11 @@ def call_llm(
 
     formatted.append(HumanMessage(content=user_input))
 
-    response = safe_invoke(formatted)
+    response = await safe_invoke(formatted)
     return response.content
 
 
-def call_llm_for_intent(user_input: str) -> str:
+async def call_llm_for_intent(user_input: str) -> str:
     """Legacy wrapper — kept for compatibility. Use call_llm_for_classify_and_route instead."""
     intent_system = """You are an intent classifier. Given user input, return ONLY a JSON object:
 {
@@ -194,17 +231,7 @@ Return ONLY valid JSON. No markdown, no explanation, no extra text."""
         SystemMessage(content=intent_system),
         HumanMessage(content=user_input)
     ]
-
-    intent_client = ChatOpenAI(
-        model=MODEL,
-        temperature=0.0,
-        max_tokens=300,
-        base_url=os.getenv("LLM_BASE_URL", "https://inference.do-ai.run/v1"),
-        api_key=os.getenv("LLM_API_KEY"),
-        timeout=60.0,
-        max_retries=1,
-    )
-    response = safe_invoke(messages, llm_client=intent_client)
+    response = await safe_invoke(messages, llm_client=_intent_client)
     return response.content
 
 
@@ -217,7 +244,7 @@ Rules:
 - Return ONLY the rewritten query text. No explanation, no quotes, no markdown."""
 
 
-def call_llm_for_rewrite(user_input: str, history_context: str = "") -> str:
+async def call_llm_for_rewrite(user_input: str, history_context: str = "") -> str:
     # Skip rewrite if no history — nothing to resolve
     if not history_context or not history_context.strip():
         return user_input
@@ -226,16 +253,7 @@ def call_llm_for_rewrite(user_input: str, history_context: str = "") -> str:
     messages.append(HumanMessage(content=f"Conversation context:\n{history_context}"))
     messages.append(HumanMessage(content=f"Latest user message: {user_input}"))
 
-    rewrite_client = ChatOpenAI(
-        model=MODEL,
-        temperature=0.0,
-        max_tokens=200,
-        base_url=os.getenv("LLM_BASE_URL", "https://inference.do-ai.run/v1"),
-        api_key=os.getenv("LLM_API_KEY"),
-        timeout=60.0,
-        max_retries=1,
-    )
-    response = safe_invoke(messages, llm_client=rewrite_client)
+    response = await safe_invoke(messages, llm_client=_rewrite_client)
     rewritten = (response.content or "").strip().strip('"').strip()
     return rewritten or user_input
 
@@ -249,21 +267,12 @@ Return ONLY a JSON object:
 Return ONLY valid JSON, no markdown, no explanation."""
 
 
-def call_llm_for_faithfulness(response_text: str, grounding_context: str) -> dict:
+async def call_llm_for_faithfulness(response_text: str, grounding_context: str) -> dict:
     messages = [
         SystemMessage(content=FAITHFULNESS_SYSTEM_PROMPT),
         HumanMessage(content=f"SOURCE CONTEXT:\n{grounding_context}\n\nGENERATED RESPONSE:\n{response_text}"),
     ]
-    judge_client = ChatOpenAI(
-        model=MODEL,
-        temperature=0.0,
-        max_tokens=200,
-        base_url=os.getenv("LLM_BASE_URL", "https://inference.do-ai.run/v1"),
-        api_key=os.getenv("LLM_API_KEY"),
-        timeout=60.0,
-        max_retries=1,
-    )
-    response = safe_invoke(messages, llm_client=judge_client)
+    response = await safe_invoke(messages, llm_client=_faithfulness_client)
     raw = (response.content or "").strip().lstrip("```json").lstrip("```").rstrip("```").strip()
     try:
         parsed = json.loads(raw)
@@ -274,6 +283,7 @@ def call_llm_for_faithfulness(response_text: str, grounding_context: str) -> dic
         }
     except Exception:
         return {"grounded": True, "reason": "Faithfulness check parse failed; defaulting to grounded.", "confidence": None}
+
 
 CLASSIFY_AND_ROUTE_SYSTEM = """You are the brain of a support chatbot. Your job is to understand the user query and route it to the correct service.
 
@@ -309,7 +319,7 @@ Rules:
 - Return ONLY valid JSON, nothing else"""
 
 
-def call_llm_for_classify_and_route(
+async def call_llm_for_classify_and_route(
     user_input: str,
     services_schema: list[dict],
     history_context: str = "",
@@ -317,7 +327,7 @@ def call_llm_for_classify_and_route(
     """
     Single LLM call that classifies intent AND routes to services.
     This replaces the old separate intent + dispatch calls.
-    
+
     Each service in services_schema should have:
         name: str
         description: str  — rich domain description drives routing accuracy
@@ -333,18 +343,8 @@ def call_llm_for_classify_and_route(
     )
     messages.append(HumanMessage(content=prompt))
 
-    smart_client = ChatOpenAI(
-        model=MODEL,
-        temperature=0.0,
-        max_tokens=400,
-        base_url=os.getenv("LLM_BASE_URL", "https://inference.do-ai.run/v1"),
-        api_key=os.getenv("LLM_API_KEY"),
-        timeout=60.0,
-        max_retries=1,
-    )
-
     try:
-        response = safe_invoke(messages, llm_client=smart_client)
+        response = await safe_invoke(messages, llm_client=_classify_client)
         raw = (response.content or "").strip().lstrip("```json").lstrip("```").rstrip("```").strip()
         if not raw:
             raise ValueError("Empty response from classifier")
@@ -368,10 +368,49 @@ def call_llm_for_classify_and_route(
         }
 
 
+async def call_llm_stream(
+    system_prompt: str,
+    messages: list[ChatMessage],
+    user_input: str,
+):
+    """Async generator — streams tokens as they arrive from the LLM."""
+    formatted = []
+    if system_prompt:
+        formatted.append(SystemMessage(content=system_prompt))
+
+    MAX_HISTORY_TOKENS = 4000
+    kept = []
+    token_count = 0
+    for msg in reversed(messages):
+        msg_tokens = max(1, len(msg.content) // 4)
+        if token_count + msg_tokens > MAX_HISTORY_TOKENS:
+            break
+        kept.insert(0, msg)
+        token_count += msg_tokens
+
+    for msg in kept:
+        role_val = msg.role.value if hasattr(msg.role, "value") else msg.role
+        if role_val == "user":
+            formatted.append(HumanMessage(content=msg.content))
+        else:
+            formatted.append(AIMessage(content=msg.content))
+
+    formatted.append(HumanMessage(content=user_input))
+
+    if not _circuit_breaker.allow_request():
+        raise CircuitBreakerOpenError("LLM circuit breaker is open; failing fast.")
+    if not await _rate_limiter.async_acquire(timeout=RATE_LIMIT_WAIT_TIMEOUT):
+        raise RateLimitExceededError("LLM rate limit exceeded; request throttled.")
+
+    async for chunk in client.astream(formatted):
+        if chunk.content:
+            yield chunk.content
+
+
 # Keep old dispatch for any legacy callers
-def call_llm_for_tool_dispatch(user_input: str, tools_schema: list[dict], history_context: str = "") -> dict:
+async def call_llm_for_tool_dispatch(user_input: str, tools_schema: list[dict], history_context: str = "") -> dict:
     """Legacy wrapper around call_llm_for_classify_and_route."""
-    result = call_llm_for_classify_and_route(user_input, tools_schema, history_context)
+    result = await call_llm_for_classify_and_route(user_input, tools_schema, history_context)
     return {
         "tools": result["services"],
         "reasoning": result["reasoning"],

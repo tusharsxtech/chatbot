@@ -71,3 +71,5 @@
 {"timestamp": "2026-07-01T12:56:18.792280", "session_id": "a8cd0c8b-79ae-4750-ad8e-c2ade0b31e44", "portal_id": "portal_a", "input": "hello, how to dispense cash", "intent": "multi_query", "response_length": 1092}
 {"timestamp": "2026-07-01T12:58:08.061655", "session_id": "a8cd0c8b-79ae-4750-ad8e-c2ade0b31e44", "portal_id": "portal_a", "input": "hwllo how are you, how to scan id", "intent": "multi_query", "response_length": 1151}
 {"timestamp": "2026-07-01T12:58:08.090029", "session_id": "a8cd0c8b-79ae-4750-ad8e-c2ade0b31e44", "portal_id": "portal_a", "input": "hwllo how are you, how to scan id", "intent": "multi_query", "response_length": 1151}
+{"timestamp": "2026-07-01T18:31:43.169077", "session_id": "test-session-1", "portal_id": "portal_a", "input": "hi", "intent": "greeting", "response_length": 65}
+{"timestamp": "2026-07-01T18:46:36.442520", "session_id": "aca882f0-d9f0-4745-a496-c895515ad950", "portal_id": "portal_a", "input": "how to dispense cash", "intent": "general", "response_length": 1154}

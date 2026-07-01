@@ -285,6 +285,7 @@ async def node_tool_router(data: dict) -> dict:
             _record_error(state, f"tool_router.execute.{service_name}", e)
             return service_name, {"error": str(e)}
 
+    tool_results = {}
     if non_rag_services:
         service_results = await asyncio.gather(*[_call_service(s) for s in non_rag_services])
         for name, result in service_results:

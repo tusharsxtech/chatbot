@@ -1,8 +1,6 @@
 from functools import lru_cache
 from typing import Iterator, List, Union
 
-from torch import chunk
-
 from openai import OpenAI
 
 from configs.settings import get_settings
@@ -38,6 +36,8 @@ class LLMClient:
         if stream:
             def _stream_chunks() -> Iterator[str]:
                 for chunk in response:
+                    if not chunk.choices:
+                        continue
                     delta = chunk.choices[0].delta.content
                     if delta:
                         yield delta

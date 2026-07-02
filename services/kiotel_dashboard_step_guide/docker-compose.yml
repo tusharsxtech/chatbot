@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: rag
       POSTGRES_DB: kiotel_rag
     ports:
-      - "5432:5432"
+      - "5436:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -23,7 +23,7 @@ services:
     build: .
     container_name: kiotel-rag-api
     ports:
-      - "8000:8000"
+      - "8020:8000"
     env_file:
       - .env
     environment:

@@ -27,8 +27,8 @@ app = FastAPI(title="Portal A - Intelligent Chatbot", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:8010", "https://kdashboard.porygonlabs.dev"],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

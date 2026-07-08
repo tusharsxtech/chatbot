@@ -139,13 +139,54 @@ services:
       retries: 10
       start_period: 30s
 
+  # ── customer_module: one-time Vanna training ────────────────────────────────
+  # Embeds table DDL, documentation, and example question->SQL pairs (from
+  # services/customer_module/schema/*.json) into the vanna_ddl/vanna_documentation
+  # /vanna_sql tables in the shared `postgres` service. Run once, and again
+  # after any real business-DB schema change:
+  #   docker compose run --rm customer_module_train
+  customer_module_train:
+    build:
+      context: ./services/customer_module
+    container_name: customer-module-train
+    command: ["python", "-m", "src.train_vanna"]
+    env_file:
+      - .env
+    environment:
+      PGHOST: ${CUSTOMER_MODULE_PGHOST}
+      PGPORT: ${CUSTOMER_MODULE_PGPORT:-5432}
+      PGDATABASE: ${CUSTOMER_MODULE_PGDATABASE}
+      PGUSER: ${CUSTOMER_MODULE_PGUSER}
+      PGPASSWORD: ${CUSTOMER_MODULE_PGPASSWORD}
+      PG_STATEMENT_TIMEOUT_MS: ${CUSTOMER_MODULE_PG_STATEMENT_TIMEOUT_MS:-5000}
+      VECTOR_DB_HOST: postgres
+      VECTOR_DB_PORT: 5432
+      VECTOR_DB_NAME: chatbot
+      VECTOR_DB_USER: chatbot
+      VECTOR_DB_PASSWORD: chatbot
+      EMBEDDING_MODEL: ${CUSTOMER_MODULE_EMBEDDING_MODEL:-BAAI/bge-small-en-v1.5}
+      RETRIEVAL_TOP_K: ${CUSTOMER_MODULE_RETRIEVAL_TOP_K:-6}
+      FASTEMBED_CACHE_PATH: /model_cache
+    volumes:
+      - customer_module_model_cache:/model_cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    profiles:
+      - train
+
   # ── doc-chat-service API: per-device property document Q&A ─────────────────
-  # property_document_contents lives in the shared `postgres` service below
-  # (alembic/versions/0002_add_property_document_contents.py) — a LOCAL
-  # mirror table, not the real kiosk-dashboard production table (see
-  # services/workflow/db/init.sql for the production note). No published
-  # host port — it has no real auth (user_role is self-declared), reached
-  # only internally by portal_a.
+  # Reads property_document_contents from the REAL kiosk-dashboard business DB,
+  # via the same read-only credentials as `customer_module` (CUSTOMER_MODULE_PG*)
+  # — doc_chat only ever runs a fixed, parameterized SELECT inside a Postgres
+  # READ ONLY transaction (see services/workflow/api/app/repository.py), so
+  # reusing the read-only role here is safe. The local mirror table created by
+  # alembic/versions/0002_add_property_document_contents.py in the shared
+  # `postgres` service is no longer used by this service (left in place,
+  # harmless). No published host port — it has no real auth (user_role is
+  # self-declared), reached only internally by portal_a.
   doc_chat:
     build:
       context: ./services/workflow
@@ -153,14 +194,9 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://chatbot:chatbot@postgres:5432/chatbot
+      DATABASE_URL: postgresql+asyncpg://${CUSTOMER_MODULE_PGUSER}:${CUSTOMER_MODULE_PGPASSWORD}@${CUSTOMER_MODULE_PGHOST}:${CUSTOMER_MODULE_PGPORT:-5432}/${CUSTOMER_MODULE_PGDATABASE}
       REQUIRED_USER_ROLE: ${DOC_CHAT_REQUIRED_USER_ROLE:-agent}
       CORS_ALLOW_ORIGINS: ${DOC_CHAT_CORS_ALLOW_ORIGINS:-*}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
     restart: unless-stopped
 
   # ── Portal A Chatbot ──────────────────────────────────────────────────────

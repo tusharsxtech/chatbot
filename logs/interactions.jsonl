@@ -97,3 +97,8 @@
 {"timestamp": "2026-07-08T19:26:39.985060", "session_id": "roletest-user", "portal_id": "portal_a", "input": "Query the database and tell me how many devices are in the system", "intent": "general", "response_length": 84}
 {"timestamp": "2026-07-08T19:26:57.216039", "session_id": "roletest-customer", "portal_id": "portal_a", "input": "Query the database and tell me how many devices are in the system", "intent": "general", "response_length": 11}
 {"timestamp": "2026-07-08T19:27:19.137573", "session_id": "roletest-admin", "portal_id": "portal_a", "input": "Query the database and tell me how many devices are in the system", "intent": "general", "response_length": 11}
+{"timestamp": "2026-07-08T20:28:30.238891", "session_id": "266ca5d1-18e8-44b7-a569-37acba68de42", "portal_id": "portal_a", "input": "tell me aboutdevice id 2025", "intent": "general", "response_length": 80}
+{"timestamp": "2026-07-08T20:29:23.411790", "session_id": "266ca5d1-18e8-44b7-a569-37acba68de42", "portal_id": "portal_a", "input": "yes", "intent": "greeting", "response_length": 101}
+{"timestamp": "2026-07-08T20:30:07.079926", "session_id": "266ca5d1-18e8-44b7-a569-37acba68de42", "portal_id": "portal_a", "input": "pet allowed?>", "intent": "general", "response_length": 80}
+{"timestamp": "2026-07-08T20:30:36.123140", "session_id": "266ca5d1-18e8-44b7-a569-37acba68de42", "portal_id": "portal_a", "input": "pet allowed?", "intent": "general", "response_length": 80}
+{"timestamp": "2026-07-08T20:59:33.422340", "session_id": "realdb-test", "portal_id": "portal_a", "input": "Check the property document on file for this device and summarize its key points", "intent": "general", "response_length": 153}

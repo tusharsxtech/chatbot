@@ -8,6 +8,27 @@
 <body>
 
 <h2>Portal A — agent_a AI Assistant</h2>
+
+<div style="border:1px solid #ccc; padding:10px; margin-bottom:10px; background:#f5f5f5;">
+  <div style="margin-bottom:8px;">
+    <label for="apiKey"><b>API Key:</b></label>
+    <input type="password" id="apiKey" placeholder="Bearer token (API_TOKEN)" style="width:300px;">
+  </div>
+  <div style="margin-bottom:8px;">
+    <label for="userRole"><b>User role:</b></label>
+    <select id="userRole">
+      <option value="user">user (default, no special tool access)</option>
+      <option value="agent">agent (property document Q&amp;A)</option>
+      <option value="admin">admin (live data queries)</option>
+      <option value="customer">customer (live data queries)</option>
+    </select>
+  </div>
+  <div>
+    <label for="deviceId"><b>Device ID:</b></label>
+    <input type="text" id="deviceId" placeholder="e.g. device-001 (only needed for property document Q&A)" style="width:300px;">
+  </div>
+</div>
+
 <hr>
 
 <div id="messages" style="height:400px; overflow-y:auto; border:1px solid #ccc; padding:10px; margin-bottom:10px; background:#fafafa;">
@@ -27,12 +48,42 @@
 <script>
 var sessionId = null;
 
+window.addEventListener('DOMContentLoaded', function() {
+  var savedKey = localStorage.getItem('portal_a_api_key');
+  if (savedKey) document.getElementById('apiKey').value = savedKey;
+  var savedRole = localStorage.getItem('portal_a_user_role');
+  if (savedRole) document.getElementById('userRole').value = savedRole;
+  var savedDevice = localStorage.getItem('portal_a_device_id');
+  if (savedDevice) document.getElementById('deviceId').value = savedDevice;
+});
+
 document.getElementById('input').addEventListener('keydown', function(e) {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     sendMessage();
   }
 });
+
+function authHeaders() {
+  var apiKey = document.getElementById('apiKey').value.trim();
+  var headers = { 'Content-Type': 'application/json' };
+  if (apiKey) {
+    headers['Authorization'] = 'Bearer ' + apiKey;
+    localStorage.setItem('portal_a_api_key', apiKey);
+  }
+  return headers;
+}
+
+function currentMetadata() {
+  var userRole = document.getElementById('userRole').value;
+  var deviceId = document.getElementById('deviceId').value.trim();
+  localStorage.setItem('portal_a_user_role', userRole);
+  localStorage.setItem('portal_a_device_id', deviceId);
+
+  var metadata = { user_role: userRole };
+  if (deviceId) metadata.device_id = deviceId;
+  return metadata;
+}
 
 function sendMessage() {
   var text = document.getElementById('input').value.trim();
@@ -46,10 +97,16 @@ function sendMessage() {
 
   fetch('/chat', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message: text, session_id: sessionId })
+    headers: authHeaders(),
+    body: JSON.stringify({ message: text, session_id: sessionId, metadata: currentMetadata() })
   })
   .then(function(response) {
+    if (!response.ok) {
+      return response.text().then(function(body) {
+        throw new Error('HTTP ' + response.status + ': ' + body);
+      });
+    }
+
     var reader = response.body.getReader();
     var decoder = new TextDecoder();
     var buffer = '';
@@ -116,7 +173,7 @@ function updateLastMessage(sender, text) {
 
 function clearChat() {
   if (sessionId) {
-    fetch('/session/' + sessionId, { method: 'DELETE' });
+    fetch('/session/' + sessionId, { method: 'DELETE', headers: authHeaders() });
   }
   sessionId = null;
   var box = document.getElementById('messages');

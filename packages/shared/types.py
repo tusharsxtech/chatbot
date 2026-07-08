@@ -76,6 +76,7 @@ class OrchestratorState:
     portal_id: str = "portal_a"
     session_id: str = ""
     user_role: str = "user"
+    device_id: str = ""
     frontend_version: str = "0.0.0"
     l1_hit: bool = False
     l2_hit: bool = False

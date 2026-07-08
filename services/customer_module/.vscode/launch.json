@@ -1,0 +1,40 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "QueryWeaver: Train Vanna (run once)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "src.train_vanna",
+      "console": "integratedTerminal",
+      "envFile": "${workspaceFolder}/.env"
+    },
+    {
+      "name": "QueryWeaver: Evaluate accuracy",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "tests.eval_accuracy",
+      "args": ["--verbose"],
+      "console": "integratedTerminal",
+      "envFile": "${workspaceFolder}/.env"
+    },
+    {
+      "name": "QueryWeaver: Ask question",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "src.main",
+      "args": ["How many devices are licensed?"],
+      "console": "integratedTerminal",
+      "envFile": "${workspaceFolder}/.env"
+    },
+    {
+      "name": "QueryWeaver: Print SQL only",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "src.main",
+      "args": ["How many devices are licensed?", "--no-execute"],
+      "console": "integratedTerminal",
+      "envFile": "${workspaceFolder}/.env"
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+# version: "3.9"
+
+services:
+  # Hybrid (pgvector + full-text) schema retrieval store
+  # (src/hybrid_vectorstore.py). Only ever stores table DDL, documentation,
+  # and example SQL, never real row data. Fully separate from your actual
+  # business database (PGHOST/PGUSER/PGPASSWORD in .env), which can be any
+  # Postgres you already run/manage — this repo doesn't bundle one.
+  vectordb:
+    image: pgvector/pgvector:pg17
+    container_name: queryweaver-vectordb
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${VECTOR_DB_NAME:-vanna_vectors}
+      POSTGRES_USER: ${VECTOR_DB_USER:-vanna}
+      POSTGRES_PASSWORD: ${VECTOR_DB_PASSWORD:-vanna_local_pw}
+    ports:
+      - "5434:5432"
+    volumes:
+      - vectordb_data:/var/lib/postgresql/data
+      - ./vector-db-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${VECTOR_DB_USER:-vanna} -d ${VECTOR_DB_NAME:-vanna_vectors}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: queryweaver-app
+    depends_on:
+      vectordb:
+        condition: service_healthy
+    environment:
+      PGHOST: ${PGHOST}
+      PGPORT: ${PGPORT:-5432}
+      PGDATABASE: ${PGDATABASE}
+      PGUSER: ${PGUSER}
+      PGPASSWORD: ${PGPASSWORD}
+      LLM_PROVIDER: ${LLM_PROVIDER:-meta}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-llama-4-maverick}
+      VECTOR_DB_HOST: ${VECTOR_DB_HOST:-vectordb}
+      VECTOR_DB_PORT: ${VECTOR_DB_PORT:-5432}
+      VECTOR_DB_NAME: ${VECTOR_DB_NAME:-vanna_vectors}
+      VECTOR_DB_USER: ${VECTOR_DB_USER:-vanna}
+      VECTOR_DB_PASSWORD: ${VECTOR_DB_PASSWORD:-vanna_local_pw}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-small-en-v1.5}
+      RETRIEVAL_TOP_K: ${RETRIEVAL_TOP_K:-6}
+      DEFAULT_ROW_LIMIT: ${DEFAULT_ROW_LIMIT:-5}
+      PG_STATEMENT_TIMEOUT_MS: ${PG_STATEMENT_TIMEOUT_MS:-5000}
+      FASTEMBED_CACHE_PATH: /model_cache
+    volumes:
+      - fastembed_model_cache:/model_cache
+    stdin_open: true
+    tty: true
+
+  api:
+    build: .
+    container_name: queryweaver-api
+    command: ["uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000"]
+    depends_on:
+      vectordb:
+        condition: service_healthy
+    environment:
+      PGHOST: ${PGHOST}
+      PGPORT: ${PGPORT:-5432}
+      PGDATABASE: ${PGDATABASE}
+      PGUSER: ${PGUSER}
+      PGPASSWORD: ${PGPASSWORD}
+      LLM_PROVIDER: ${LLM_PROVIDER:-meta}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-llama-4-maverick}
+      VECTOR_DB_HOST: ${VECTOR_DB_HOST:-vectordb}
+      VECTOR_DB_PORT: ${VECTOR_DB_PORT:-5432}
+      VECTOR_DB_NAME: ${VECTOR_DB_NAME:-vanna_vectors}
+      VECTOR_DB_USER: ${VECTOR_DB_USER:-vanna}
+      VECTOR_DB_PASSWORD: ${VECTOR_DB_PASSWORD:-vanna_local_pw}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-small-en-v1.5}
+      RETRIEVAL_TOP_K: ${RETRIEVAL_TOP_K:-6}
+      DEFAULT_ROW_LIMIT: ${DEFAULT_ROW_LIMIT:-5}
+      PG_STATEMENT_TIMEOUT_MS: ${PG_STATEMENT_TIMEOUT_MS:-5000}
+      API_KEY: ${API_KEY:-}
+      FASTEMBED_CACHE_PATH: /model_cache
+    volumes:
+      - fastembed_model_cache:/model_cache
+    ports:
+      - "8000:8000"
+
+volumes:
+  vectordb_data:
+  fastembed_model_cache:

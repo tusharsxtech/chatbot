@@ -12,6 +12,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.responses import StreamingResponse
+#--new
+import secrets
+from dotenv import load_dotenv
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import FastAPI, Depends, HTTPException, status
+#--
 import json
 from pydantic import BaseModel
 from typing import Optional
@@ -23,7 +29,37 @@ from services.cache.warmer import warm
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Portal A - Intelligent Chatbot", version="1.0.0")
+
+load_dotenv()
+
+API_TOKEN = os.getenv("API_TOKEN")
+if not API_TOKEN:
+    raise RuntimeError("API_TOKEN not set in environment")
+
+
+#-------------------------Authorization Tocken Middleware-------------------------#
+
+bearer_scheme = HTTPBearer()
+
+
+def verify_token(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
+    token = credentials.credentials  # the string after "Bearer "
+
+    # constant-time comparison to avoid timing attacks
+    if not secrets.compare_digest(token, API_TOKEN):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return token
+#-----------------------End of Authorization Token Middleware-----------------------#
+
+app = FastAPI(
+    title="Portal A - Intelligent Chatbot",
+    version="1.0.0",
+    dependencies=[Depends(verify_token)],
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -36,6 +72,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 
 
@@ -66,8 +103,11 @@ def _check_rate_limit(key: str) -> bool:
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
-    user_role: Optional[str] = "user"
     frontend_version: Optional[str] = "v1"
+    # e.g. {"user_role": "agent", "device_id": "kiosk-123"} — user_role gates
+    # the workflow/doc-chat tool, device_id scopes which device's property
+    # documents it searches. Both optional; absent user_role defaults to "user".
+    metadata: Optional[dict] = None
 
 
 class WarmRequest(BaseModel):
@@ -176,12 +216,14 @@ async def chat(req: ChatRequest, request: Request):
     session_id = req.session_id or str(uuid.uuid4())
     history = _sessions.get(session_id, [])
 
+    meta = req.metadata or {}
     state = OrchestratorState(
         messages=history.copy(),
         current_input=req.message.strip(),
         portal_id=PORTAL_ID,
         session_id=session_id,
-        user_role=req.user_role or "user",
+        user_role=meta.get("user_role") or "user",
+        device_id=meta.get("device_id") or "",
         frontend_version=req.frontend_version or "v1",
     )
 
@@ -230,12 +272,14 @@ async def debug_tools():
 async def chat_debug(req: ChatRequest):
     import traceback
     session_id = req.session_id or str(uuid.uuid4())
+    meta = req.metadata or {}
     state = OrchestratorState(
         messages=[],
         current_input=req.message.strip(),
         portal_id=PORTAL_ID,
         session_id=session_id,
-        user_role="user",
+        user_role=meta.get("user_role") or "user",
+        device_id=meta.get("device_id") or "",
         frontend_version="v1",
     )
     try:

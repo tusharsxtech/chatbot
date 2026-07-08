@@ -1,3 +1,6 @@
+
+
+
 import sys
 sys.path.insert(0, "/app")
 
@@ -5,13 +8,14 @@ import importlib
 
 _loaded = False
 
-# knowledge_base.tool and step_guide.tool removed.
 # kiotel_dashboard_rag.tool replaces them as the primary retrieval tool.
 # Add further service tools below as the project grows.
 TOOL_MODULES = [
     "services.ticket.tool",
     "services.account.tool",
     "services.kiotel_dashboard_step_guide.tool",
+    "services.customer_module.tool",
+    "services.workflow.tool",
 ]
 
 

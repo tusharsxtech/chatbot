@@ -20,6 +20,7 @@ from packages.ai_layer.guardrails import check_input, check_output
 from packages.ai_layer.gateway import (
     call_llm, call_llm_stream, call_llm_for_rewrite,
     call_llm_for_faithfulness, call_llm_for_classify_and_route,
+    call_ollama_receptionist,
     LLMServiceError,
 )
 from packages.ai_layer.prompt_manager import build_prompt
@@ -33,6 +34,18 @@ logger = logging.getLogger(__name__)
 
 _RAG_BASE_URL = os.getenv("KIOTEL_RAG_URL", "http://localhost:8001")
 _RAG_TIMEOUT = float(os.getenv("KIOTEL_RAG_TIMEOUT", "180.0"))
+_DOC_CHAT_URL = os.getenv("DOC_CHAT_URL", "http://localhost:8000")
+_DOC_CHAT_TIMEOUT = float(os.getenv("DOC_CHAT_TIMEOUT", "60.0"))
+
+# Tools whose answer becomes the final response directly, bypassing LLM
+# synthesis entirely (success or failure). kiotel_customer_module and
+# kiotel_property_docs are additionally never cached — see _NO_CACHE_TOOLS.
+_DIRECT_ANSWER_TOOLS = (
+    "kiotel_dashboard_step_guide",
+    "kiotel_dashboard_rag",
+    "kiotel_customer_module",
+    "kiotel_property_docs",
+)
 
 
 async def _stream_rag(question: str, chat_history: list | None = None):
@@ -66,6 +79,37 @@ async def _stream_rag(question: str, chat_history: list | None = None):
         yield None, {"error": str(e)}
 
 
+async def _stream_workflow(question: str, device_id: str, user_role: str):
+    """Async generator — yields (token: str|None, meta: dict|None) from the doc-chat-service SSE stream."""
+    payload = {"query": question, "device_id": device_id, "user_role": user_role}
+    try:
+        async with httpx.AsyncClient(timeout=_DOC_CHAT_TIMEOUT) as client:
+            async with client.stream("POST", f"{_DOC_CHAT_URL}/chat", json=payload) as resp:
+                resp.raise_for_status()
+                event_name = None
+                async for line in resp.aiter_lines():
+                    if line.startswith("event:"):
+                        event_name = line[len("event:"):].strip()
+                        continue
+                    if not line.startswith("data:"):
+                        continue
+                    raw = line[len("data:"):].strip()
+                    try:
+                        event = json.loads(raw)
+                    except json.JSONDecodeError:
+                        continue
+                    if event_name == "token":
+                        yield event.get("content", ""), None
+                    elif event_name == "error":
+                        yield None, {"error": event.get("detail", "doc-chat service error")}
+                        return
+                    elif event_name == "done":
+                        return
+    except Exception as e:
+        logger.error("_stream_workflow failed: %s", e)
+        yield None, {"error": str(e)}
+
+
 load_all_tools()
 
 try:
@@ -92,17 +136,21 @@ def _record_error(state: OrchestratorState, node_name: str, exc: Exception) -> N
     state.metadata.setdefault("errors", []).append({"node": node_name, "error": str(exc)})
 
 
-def _rag_tool_result(tool_results: dict) -> dict | None:
-    """Return the RAG result if it succeeded, else None."""
-    result = tool_results.get("kiotel_dashboard_step_guide") or tool_results.get("kiotel_dashboard_rag")
-    if result and result.get("found") and result.get("answer"):
-        return result
+def _direct_tool_result(tool_results: dict) -> dict | None:
+    """Return the first successful direct-answer tool result (RAG, customer_module,
+    property docs), else None. A failed direct-answer tool result is NOT
+    returned here — it falls through to _build_tool_context so the LLM can
+    still synthesize a fallback response referencing it."""
+    for name in _DIRECT_ANSWER_TOOLS:
+        result = tool_results.get(name)
+        if result and result.get("found") and result.get("answer"):
+            return result
     return None
 
 
 def _build_tool_context(tool_results: dict) -> str:
-    """Serialise non-RAG tool results for injection into the LLM system prompt."""
-    relevant = {k: v for k, v in tool_results.items() if not _rag_tool_result({k: v})}
+    """Serialise non-direct-answer tool results for injection into the LLM system prompt."""
+    relevant = {k: v for k, v in tool_results.items() if not _direct_tool_result({k: v})}
     return ("\n\nTool results:\n" + json.dumps(relevant, indent=2)) if relevant else ""
 
 
@@ -268,9 +316,10 @@ async def node_tool_router(data: dict) -> dict:
         state.metadata["tool_results"] = {}
         return {"state": state}
 
-    # RAG is NOT pre-fetched here — streaming path pipes it directly in run_orchestrator_stream,
-    # non-streaming path fetches it in node_generate_response.
-    non_rag_services = [s for s in decision["services"] if s != "kiotel_dashboard_rag"]
+    # Direct-answer tools (RAG, customer_module, property docs) are NOT pre-fetched
+    # here — streaming path pipes them directly in run_orchestrator_stream,
+    # non-streaming path fetches them in node_generate_response.
+    non_rag_services = [s for s in decision["services"] if s not in _DIRECT_ANSWER_TOOLS]
 
     async def _call_service(service_name: str):
         tool = registry.get(service_name)
@@ -324,6 +373,9 @@ async def node_handle_multi_query(data: dict) -> dict:
     async def _process_sub_query(sub_q: str) -> str:
         try:
             decision = await call_llm_for_classify_and_route(sub_q, services_schema, history_context=l1_ctx)
+            if decision["query_type"] in ("greeting", "chit_chat"):
+                return await call_ollama_receptionist(sub_q, state.messages)
+
             sub_tools = {}
             if decision["query_type"] not in ("greeting", "chit_chat") and decision["services"]:
                 async def _call_sub_tool(tool_name: str):
@@ -331,7 +383,13 @@ async def node_handle_multi_query(data: dict) -> dict:
                     if tool and tool.enabled:
                         try:
                             return tool_name, await asyncio.to_thread(
-                                tool.handler, {"question": sub_q, "chat_history": chat_history or None}
+                                tool.handler,
+                                {
+                                    "question": sub_q,
+                                    "chat_history": chat_history or None,
+                                    "device_id": state.device_id,
+                                    "user_role": state.user_role,
+                                },
                             )
                         except Exception as te:
                             return tool_name, {"error": str(te)}
@@ -340,9 +398,9 @@ async def node_handle_multi_query(data: dict) -> dict:
                 tool_results = await asyncio.gather(*[_call_sub_tool(t) for t in decision["services"]])
                 sub_tools = {name: res for name, res in tool_results if res is not None}
 
-            rag = _rag_tool_result(sub_tools)
-            if rag:
-                return rag["answer"]
+            direct = _direct_tool_result(sub_tools)
+            if direct:
+                return direct["answer"]
             tool_context = _build_tool_context(sub_tools)
             ctx = (f"\n\nSession context:\n{l1_ctx}" if l1_ctx else "") + tool_context
             response = await call_llm(build_prompt(state.portal_id) + ctx, state.messages, sub_q)
@@ -389,38 +447,74 @@ async def node_generate_response(data: dict) -> dict:
         return {"state": state}
 
     tool_results = state.metadata.get("tool_results", {})
+    selected = state.metadata.get("tool_route", {}).get("selected_tools", [])
 
-    # Fetch RAG here for the non-streaming path (streaming path handles it in run_orchestrator_stream)
-    if not _rag_tool_result(tool_results):
-        selected = state.metadata.get("tool_route", {}).get("selected_tools", [])
-        if "kiotel_dashboard_rag" in selected:
-            from packages.ai_layer.tool_registry import registry
-            rag_tool = registry.get("kiotel_dashboard_rag")
-            if rag_tool and rag_tool.enabled:
-                chat_history_for_rag = [
-                    {"role": m.role.value if hasattr(m.role, "value") else m.role, "content": m.content}
-                    for m in state.messages[-6:]
-                ]
-                try:
-                    result = await asyncio.to_thread(
-                        rag_tool.handler,
-                        {"question": state.sanitized_input, "chat_history": chat_history_for_rag or None},
-                    )
-                    tool_results["kiotel_dashboard_rag"] = result
-                    state.metadata["tool_results"] = tool_results
-                except Exception as e:
-                    _record_error(state, "generate_response.rag_fetch", e)
+    # Fetch direct-answer tools here for the non-streaming path (streaming
+    # path handles them in run_orchestrator_stream).
+    if any(name in selected and tool_results.get(name) is None for name in _DIRECT_ANSWER_TOOLS):
+        from packages.ai_layer.tool_registry import registry
+        chat_history_ctx = [
+            {"role": m.role.value if hasattr(m.role, "value") else m.role, "content": m.content}
+            for m in state.messages[-6:]
+        ]
 
-    rag = _rag_tool_result(tool_results)
-    if rag:
+        async def _fetch_direct(tool_name: str, inputs: dict) -> None:
+            tool = registry.get(tool_name)
+            if not tool or not tool.enabled:
+                return
+            try:
+                tool_results[tool_name] = await asyncio.to_thread(tool.handler, inputs)
+            except Exception as e:
+                _record_error(state, f"generate_response.{tool_name}", e)
+
+        if "kiotel_dashboard_rag" in selected and tool_results.get("kiotel_dashboard_rag") is None:
+            await _fetch_direct(
+                "kiotel_dashboard_rag",
+                {"question": state.sanitized_input, "chat_history": chat_history_ctx or None},
+            )
+        if "kiotel_customer_module" in selected and tool_results.get("kiotel_customer_module") is None:
+            await _fetch_direct(
+                "kiotel_customer_module",
+                {"question": state.sanitized_input, "user_role": state.user_role},
+            )
+        if "kiotel_property_docs" in selected and tool_results.get("kiotel_property_docs") is None:
+            await _fetch_direct(
+                "kiotel_property_docs",
+                {"question": state.sanitized_input, "device_id": state.device_id, "user_role": state.user_role},
+            )
+
+        state.metadata["tool_results"] = tool_results
+
+    direct = _direct_tool_result(tool_results)
+    if direct:
+        extra_meta = {}
+        if direct.get("query_used") is not None:
+            extra_meta["rag_query_used"] = direct.get("query_used")
+        if direct.get("source_documents") is not None:
+            extra_meta["rag_sources"] = direct.get("source_documents", [])
+        if direct.get("sql") is not None:
+            extra_meta["sql"] = direct.get("sql")
+        if direct.get("device_id") is not None:
+            extra_meta["device_id"] = direct.get("device_id")
         state.final_response = AIResponse(
-            content=rag["answer"],
+            content=direct["answer"],
             intent=state.intent.primary_intent if state.intent else IntentType.GENERAL,
-            metadata={
-                **state.metadata.get("tool_route", {}),
-                "rag_query_used": rag.get("query_used"),
-                "rag_sources": rag.get("source_documents", []),
-            },
+            metadata={**state.metadata.get("tool_route", {}), **extra_meta},
+        )
+        return {"state": state}
+
+    intent = state.intent.primary_intent if state.intent else IntentType.GENERAL
+
+    if state.metadata.get("tool_route", {}).get("is_chit_chat"):
+        try:
+            response_text = await call_ollama_receptionist(state.sanitized_input, state.messages)
+        except Exception as e:
+            _record_error(state, "generate_response.receptionist", e)
+            response_text = "I'm here to help with Kiotel's dashboard and tools — could you tell me what you'd like help with?"
+        state.final_response = AIResponse(
+            content=response_text,
+            intent=intent,
+            metadata=state.metadata.get("tool_route", {}),
         )
         return {"state": state}
 
@@ -428,7 +522,6 @@ async def node_generate_response(data: dict) -> dict:
     tool_context = _build_tool_context(tool_results)
     ctx = (f"\n\nSession context:\n{l1_ctx}" if l1_ctx else "") + tool_context
     system_prompt = build_prompt(state.portal_id) + ctx
-    intent = state.intent.primary_intent if state.intent else IntentType.GENERAL
 
     safe_messages, conv_summary = await get_safe_messages_for_llm(
         state.messages, system_prompt, call_llm, state.session_id
@@ -471,8 +564,17 @@ _FALLBACK_PHRASES = [
 ]
 
 
+# Tools whose answers are never cached — customer_module reflects live DB
+# state and property-docs answers are scoped to a specific device_id, so a
+# cached answer could serve stale data or leak across devices/sessions.
+_NO_CACHE_TOOLS = {"kiotel_customer_module", "kiotel_property_docs"}
+
+
 def _is_cacheable_response(response_text: str, tool_results: dict) -> bool:
     if not response_text or len(response_text.strip()) < 20:
+        return False
+
+    if _NO_CACHE_TOOLS & tool_results.keys():
         return False
 
     lower = response_text.lower()
@@ -737,6 +839,76 @@ async def run_orchestrator_stream(state: OrchestratorState):
                 yield json.dumps({"type": "chunk", "text": fallback})
             full_response = "".join(parts)
             final_intent = ps.intent.primary_intent if ps.intent else IntentType.GENERAL
+
+        elif "kiotel_customer_module" in selected_tools:
+            # customer_module has no token stream (single blocking /ask call) —
+            # fetch the full answer async, then stream it word-by-word.
+            from packages.ai_layer.tool_registry import registry as _registry
+            tool = _registry.get("kiotel_customer_module")
+            try:
+                result = (
+                    await asyncio.to_thread(
+                        tool.handler, {"question": ps.sanitized_input, "user_role": ps.user_role}
+                    )
+                    if tool and tool.enabled else {"found": False, "error": "Tool unavailable."}
+                )
+            except Exception as e:
+                logger.error("customer_module fetch failed: %s", e)
+                result = {"found": False, "error": str(e)}
+            tool_results["kiotel_customer_module"] = result
+            if result.get("found") and result.get("answer"):
+                full_response = result["answer"]
+                if result.get("sql") is not None:
+                    final_metadata["sql"] = result.get("sql")
+            else:
+                full_response = "I couldn't retrieve that data right now. Please try again or rephrase your question."
+            for word in full_response.split(" "):
+                yield json.dumps({"type": "chunk", "text": word + " "})
+            final_intent = ps.intent.primary_intent if ps.intent else IntentType.GENERAL
+
+        elif "kiotel_property_docs" in selected_tools:
+            tool_results.setdefault("kiotel_property_docs", {"found": False})
+            if not ps.device_id:
+                full_response = "I need to know which device/property you're asking about to check its documents."
+                yield json.dumps({"type": "chunk", "text": full_response})
+            else:
+                parts = []
+                error_meta = None
+                try:
+                    async for token, meta in _stream_workflow(ps.sanitized_input, ps.device_id, ps.user_role):
+                        if token:
+                            parts.append(token)
+                            yield json.dumps({"type": "chunk", "text": token})
+                        elif meta:
+                            error_meta = meta
+                            break
+                except Exception as e:
+                    logger.error("Property docs streaming failed: %s", e)
+                    error_meta = {"error": str(e)}
+                if not parts:
+                    fallback = "I couldn't find an answer in this device's property documents. Please try again."
+                    parts = [fallback]
+                    yield json.dumps({"type": "chunk", "text": fallback})
+                full_response = "".join(parts)
+                tool_results["kiotel_property_docs"] = {
+                    "found": bool(parts and not error_meta),
+                    "answer": full_response,
+                    "device_id": ps.device_id,
+                }
+                final_metadata["device_id"] = ps.device_id
+            final_intent = ps.intent.primary_intent if ps.intent else IntentType.GENERAL
+
+        elif ps.metadata.get("tool_route", {}).get("is_chit_chat"):
+            # Chit-chat / off-topic — guardrailed receptionist (free Ollama, paid-LLM
+            # fallback on breaker-open), no dedicated streaming path since replies are short.
+            try:
+                receptionist_reply = await call_ollama_receptionist(ps.sanitized_input, ps.messages)
+            except Exception as e:
+                logger.error("Receptionist failed: %s", e)
+                receptionist_reply = "I'm here to help with Kiotel's dashboard and tools — could you tell me what you'd like help with?"
+            for word in receptionist_reply.split(" "):
+                yield json.dumps({"type": "chunk", "text": word + " "})
+            full_response = receptionist_reply
 
         else:
             # No RAG — stream LLM generation token by token

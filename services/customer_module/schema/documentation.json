@@ -1,0 +1,4 @@
+[
+  "The 'property workflow' or 'property document lifecycle' refers to property_documents (id, title, color, all_devices — the document itself), property_document_devices (links a property_document_id to a device_id), and property_document_contents (per-device HTML content for a property document). To find the property document(s) for a specific device, join property_document_devices to property_documents via property_document_id, filtered by device_id.",
+  "The transactions table has no foreign key to t_sessions or t_session_info — its only foreign key is transactions.device_id -> devices.device_id. To approximate finding transactions for a given session_id, join transactions to t_session_info by matching guest_name, room_no, and account_no (a business-key match, not a formal foreign key), then filter on t_session_info.session_id. This is inherently approximate since it's not a real relational link."
+]

@@ -1,0 +1,1425 @@
+
+{
+  "database": "kiosk",
+  "dialect": "postgresql",
+  "tables": {
+    "admin_activity_log": [
+      "id",
+      "admin_id",
+      "admin_name",
+      "action",
+      "created_at"
+    ],
+    "admins": [
+      "id",
+      "password",
+      "name",
+      "role",
+      "is_active",
+      "created_at",
+      "email",
+      "permissions",
+      "failed_login_count",
+      "locked_until"
+    ],
+    "agents": [
+      "id",
+      "agent_id",
+      "agent_name",
+      "agent_email",
+      "agent_phone",
+      "agent_password",
+      "is_active",
+      "failed_login_count",
+      "locked_until",
+      "token_version",
+      "created_at",
+      "last_active_at",
+      "is_removed",
+      "last_device_id",
+      "last_device_at"
+    ],
+    "agents_assigned_devices_info": [
+      "id",
+      "agent_id",
+      "device_id",
+      "admin_lock",
+      "options_edit_permision",
+      "reciept_designer_permision",
+      "receipt_designer_add",
+      "receipt_designer_edit",
+      "receipt_designer_delete",
+      "receipt_designer_set",
+      "storage_add",
+      "storage_delete",
+      "storage_legal_add",
+      "storage_legal_delete",
+      "legal_doc_template_edit",
+      "legal_doc_fill",
+      "simulation_mode_toggle",
+      "hide_video_call_display",
+      "ai_avatar_display"
+    ],
+    "allowed_locations": [
+      "id",
+      "label",
+      "lat",
+      "lng",
+      "radius_km",
+      "is_active",
+      "created_at",
+      "updated_at"
+    ],
+    "app_secrets": [
+      "id",
+      "name",
+      "description",
+      "value_ciphertext",
+      "iv",
+      "auth_tag",
+      "created_by_admin_id",
+      "updated_by_admin_id",
+      "created_at",
+      "updated_at"
+    ],
+    "camera_capturejobs": [
+      "id",
+      "session_id",
+      "capture_job_id",
+      "device_id",
+      "capture_status",
+      "capture_resource_url",
+      "error_message",
+      "created_at",
+      "updated_at",
+      "session_ref_id"
+    ],
+    "cash_events": [
+      "id",
+      "session_id",
+      "event_source",
+      "event_type",
+      "denomination",
+      "currency",
+      "metadata",
+      "created_at",
+      "updated_at",
+      "event_id",
+      "session_ref_id"
+    ],
+    "cashbox": [
+      "id",
+      "device_id",
+      "currency",
+      "count",
+      "amount",
+      "created_at",
+      "updated_at"
+    ],
+    "communication_presets": [
+      "id",
+      "device_id",
+      "type",
+      "message",
+      "language",
+      "font_size",
+      "timeout",
+      "created_at",
+      "updated_at"
+    ],
+    "currency_info": [
+      "id",
+      "device_id",
+      "denomation_value",
+      "currency",
+      "count"
+    ],
+    "device_license_events": [
+      "id",
+      "device_id",
+      "event_type",
+      "old_fingerprint",
+      "new_fingerprint",
+      "metadata",
+      "created_at"
+    ],
+    "device_oauth": [
+      "id",
+      "device_id",
+      "token_hash",
+      "issued_ip",
+      "revoked_at",
+      "created_at",
+      "updated_at"
+    ],
+    "devices": [
+      "id",
+      "device_id",
+      "device_name",
+      "device_location",
+      "device_secret",
+      "hardware_fingerprint",
+      "is_licensed",
+      "license_status",
+      "licensed_at",
+      "revoked_at",
+      "created_at",
+      "last_active_at",
+      "is_removed",
+      "app_version",
+      "app_version_reported_at",
+      "device_secret_hash"
+    ],
+    "documents": [
+      "id",
+      "device_id",
+      "title",
+      "content_html",
+      "word_count",
+      "created_by_agent_id",
+      "updated_by_agent_id",
+      "created_at",
+      "updated_at",
+      "pinned_at",
+      "color"
+    ],
+    "ext_oauth_codes": [
+      "id",
+      "code_hash",
+      "device_id",
+      "client_id",
+      "code_challenge",
+      "code_challenge_method",
+      "redirect_uri",
+      "state",
+      "expires_at",
+      "used_at",
+      "created_at",
+      "updated_at",
+      "agent_id"
+    ],
+    "external_api_client_devices": [
+      "id",
+      "client_id",
+      "device_id",
+      "created_at"
+    ],
+    "external_api_clients": [
+      "id",
+      "name",
+      "contact_email",
+      "description",
+      "scopes",
+      "token_prefix",
+      "token_hash",
+      "allowed_ips",
+      "is_active",
+      "created_by_admin_id",
+      "token_regenerated_at",
+      "token_regenerated_by_admin_id",
+      "created_at",
+      "updated_at"
+    ],
+    "external_api_scopes": [
+      "key",
+      "description",
+      "created_by_admin_id",
+      "created_at"
+    ],
+    "function_mappings": [
+      "id",
+      "function_key",
+      "function_label",
+      "animation_id",
+      "light_label_key",
+      "created_at",
+      "updated_at"
+    ],
+    "guest_msg_input": [
+      "id",
+      "session_id",
+      "message_string",
+      "created_at",
+      "session_ref_id"
+    ],
+    "guest_rating": [
+      "id",
+      "session_id",
+      "account_no",
+      "rating",
+      "created_at",
+      "session_ref_id"
+    ],
+    "id_scanjobs": [
+      "id",
+      "session_id",
+      "scan_job_id",
+      "device_id",
+      "auto_created",
+      "scan_type",
+      "scan_status",
+      "secondary_original_url",
+      "extracted_info",
+      "created_at",
+      "updated_at",
+      "dnr_acknowledge_info",
+      "dnr_acknowledged_at",
+      "primary_original_url",
+      "ocr_json",
+      "guest_name_match_info",
+      "guest_name_mismatch_acknowledged_at",
+      "session_ref_id"
+    ],
+    "kiosk_installer_versions": [
+      "id",
+      "installer_type",
+      "version_no",
+      "resource_url",
+      "release_notes",
+      "mandatory",
+      "created_at",
+      "updated_at",
+      "requires_ocr_setup"
+    ],
+    "kiosk_options": [
+      "id",
+      "device_id",
+      "support_email",
+      "phone",
+      "wifi_name",
+      "password",
+      "break_fast_time",
+      "body_notes",
+      "footer_notes",
+      "cash_port",
+      "key_port",
+      "baud_rate",
+      "scanner_option",
+      "hotelname",
+      "cash_dispenser_type",
+      "nv4000_approach",
+      "simulation_mode",
+      "created_at",
+      "updated_at",
+      "ocr_option",
+      "indicator_lights",
+      "cashbox_capacity",
+      "recording_timeout_seconds",
+      "enforce_fill_screen",
+      "enforce_captions",
+      "enforce_tap_for_assistance",
+      "rounded_corners"
+    ],
+    "kiosk_receipt_info": [
+      "id",
+      "device_id",
+      "name",
+      "printer_paper_type",
+      "receipt_design",
+      "is_active",
+      "created_at",
+      "updated_at",
+      "kiosk_time_variables"
+    ],
+    "kiosk_receipt_variables": [
+      "id",
+      "variable_key",
+      "variable_label",
+      "variable_group",
+      "is_system",
+      "default_source",
+      "created_at"
+    ],
+    "kiosk_recycler_routes": [
+      "id",
+      "device_id",
+      "currency",
+      "recycler_1",
+      "recycler_2",
+      "recycler_3",
+      "recycler_4",
+      "payout_1",
+      "payout_2",
+      "payout_3",
+      "payout_4",
+      "payout_5",
+      "payout_6",
+      "payout_7",
+      "created_at",
+      "updated_at"
+    ],
+    "knex_migrations": [
+      "id",
+      "name",
+      "batch",
+      "migration_time"
+    ],
+    "knex_migrations_lock": [
+      "index",
+      "is_locked"
+    ],
+    "legal_document_prefills": [
+      "id",
+      "template_id",
+      "session_id",
+      "device_id",
+      "field_values",
+      "created_at",
+      "updated_at",
+      "session_ref_id"
+    ],
+    "legal_document_print_jobs": [
+      "id",
+      "print_job_id",
+      "device_id",
+      "session_id",
+      "template_id",
+      "status",
+      "created_at",
+      "updated_at",
+      "session_ref_id"
+    ],
+    "legal_document_submissions": [
+      "id",
+      "template_id",
+      "device_id",
+      "session_id",
+      "field_values",
+      "status",
+      "signed_pdf_key",
+      "submitted_at",
+      "created_at",
+      "updated_at",
+      "session_ref_id"
+    ],
+    "legal_document_templates": [
+      "id",
+      "storage_id",
+      "device_id",
+      "name",
+      "pdf_page_count",
+      "fields",
+      "created_at",
+      "updated_at",
+      "is_active"
+    ],
+    "light_channel_maps": [
+      "id",
+      "channel",
+      "label_key",
+      "created_at"
+    ],
+    "light_labels": [
+      "id",
+      "key",
+      "label",
+      "created_at"
+    ],
+    "login_history": [
+      "id",
+      "agent_id",
+      "device_id",
+      "ip_address",
+      "browser_fingerprint",
+      "browser_signature",
+      "location",
+      "login_time",
+      "status",
+      "authorization_status",
+      "message",
+      "retry_after",
+      "lat",
+      "lng"
+    ],
+    "logs": [
+      "id",
+      "log"
+    ],
+    "notification_devices": [
+      "id",
+      "notification_id",
+      "device_id",
+      "created_at"
+    ],
+    "notifications": [
+      "id",
+      "title",
+      "body_html",
+      "show_on_login",
+      "show_on_session_start",
+      "is_recurring",
+      "recurring_interval_minutes",
+      "is_active",
+      "created_by_admin_id",
+      "created_at",
+      "updated_at",
+      "show_on_session_end",
+      "is_recurring_in_session",
+      "recurring_in_session_interval_minutes"
+    ],
+    "property_document_contents": [
+      "id",
+      "property_document_id",
+      "device_id",
+      "content_html",
+      "word_count",
+      "updated_by_agent_id",
+      "created_at",
+      "updated_at"
+    ],
+    "property_document_devices": [
+      "id",
+      "property_document_id",
+      "device_id",
+      "created_at"
+    ],
+    "property_documents": [
+      "id",
+      "title",
+      "color",
+      "all_devices",
+      "created_by_admin_id",
+      "created_at",
+      "updated_at"
+    ],
+    "recycler_info": [
+      "id",
+      "device_id",
+      "denomation_value",
+      "count",
+      "currency"
+    ],
+    "scheduled_task_images": [
+      "id",
+      "scheduled_task_id",
+      "image_uuid",
+      "resource_url",
+      "object_key",
+      "original_name",
+      "mime_type",
+      "file_size_bytes",
+      "uploaded_by_agent_id",
+      "created_at"
+    ],
+    "scheduled_tasks_info": [
+      "id",
+      "task_id",
+      "task_uuid",
+      "occurrence_date",
+      "status",
+      "agent_response",
+      "last_agent_id",
+      "submitted_at",
+      "created_at",
+      "updated_at"
+    ],
+    "session_ai_audit": [
+      "id",
+      "session_id",
+      "agent_rating",
+      "remark_for_agent",
+      "report",
+      "status",
+      "created_at",
+      "updated_at",
+      "session_ref_id"
+    ],
+    "settings": [
+      "id",
+      "setting_key",
+      "setting_value",
+      "updated_at"
+    ],
+    "slideshow_config": [
+      "id",
+      "device_id",
+      "change_image_timer",
+      "created_at",
+      "updated_at",
+      "name",
+      "guest_rating_slideshow",
+      "loop"
+    ],
+    "slideshow_images": [
+      "id",
+      "device_id",
+      "filename",
+      "original_name",
+      "file_size",
+      "upload_date"
+    ],
+    "slideshow_selections": [
+      "id",
+      "storage_file_id",
+      "display_order",
+      "config_id"
+    ],
+    "storage_info": [
+      "id",
+      "device_id",
+      "file_type",
+      "original_name",
+      "resource_url",
+      "storage_category",
+      "created_at",
+      "updated_at",
+      "public_id"
+    ],
+    "t_session_events": [
+      "id",
+      "event_id",
+      "session_id",
+      "device_id",
+      "event_category",
+      "event_action",
+      "status",
+      "metadata",
+      "created_at",
+      "updated_at",
+      "session_ref_id"
+    ],
+    "t_session_info": [
+      "id",
+      "session_id",
+      "guest_name",
+      "room_no",
+      "account_no",
+      "currency",
+      "room_amount",
+      "deposit_amount",
+      "session_ref_id"
+    ],
+    "t_sessions": [
+      "id",
+      "session_id",
+      "agent_id",
+      "device_id",
+      "start_time",
+      "end_time",
+      "status",
+      "created_at",
+      "started_by_agent_id",
+      "has_interaction"
+    ],
+    "tasks": [
+      "id",
+      "device_id",
+      "title",
+      "description",
+      "priority_level",
+      "kind",
+      "recurring_days",
+      "is_active",
+      "is_deleted",
+      "created_at",
+      "updated_at"
+    ],
+    "transactions": [
+      "id",
+      "device_id",
+      "uid",
+      "guest_name",
+      "room_no",
+      "account_no",
+      "room_amount",
+      "deposit_amount",
+      "total_amount",
+      "refund_amount",
+      "posted_date",
+      "ip_address",
+      "is_confirmed",
+      "confirmed_date"
+    ],
+    "video_sessions": [
+      "id",
+      "device_id",
+      "session_status",
+      "meeting_url",
+      "kiosk_guest_name",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "primary_keys": {
+    "admin_activity_log": [
+      "id"
+    ],
+    "admins": [
+      "id"
+    ],
+    "agents": [
+      "id"
+    ],
+    "agents_assigned_devices_info": [
+      "id"
+    ],
+    "allowed_locations": [
+      "id"
+    ],
+    "app_secrets": [
+      "id"
+    ],
+    "camera_capturejobs": [
+      "id"
+    ],
+    "cash_events": [
+      "id"
+    ],
+    "cashbox": [
+      "id"
+    ],
+    "communication_presets": [
+      "id"
+    ],
+    "currency_info": [
+      "id"
+    ],
+    "device_license_events": [
+      "id"
+    ],
+    "device_oauth": [
+      "id"
+    ],
+    "devices": [
+      "id"
+    ],
+    "documents": [
+      "id"
+    ],
+    "ext_oauth_codes": [
+      "id"
+    ],
+    "external_api_client_devices": [
+      "id"
+    ],
+    "external_api_clients": [
+      "id"
+    ],
+    "external_api_scopes": [
+      "key"
+    ],
+    "function_mappings": [
+      "id"
+    ],
+    "guest_msg_input": [
+      "id"
+    ],
+    "guest_rating": [
+      "id"
+    ],
+    "id_scanjobs": [
+      "id"
+    ],
+    "kiosk_installer_versions": [
+      "id"
+    ],
+    "kiosk_options": [
+      "id"
+    ],
+    "kiosk_receipt_info": [
+      "id"
+    ],
+    "kiosk_receipt_variables": [
+      "id"
+    ],
+    "kiosk_recycler_routes": [
+      "id"
+    ],
+    "knex_migrations": [
+      "id"
+    ],
+    "knex_migrations_lock": [
+      "index"
+    ],
+    "legal_document_prefills": [
+      "id"
+    ],
+    "legal_document_print_jobs": [
+      "id"
+    ],
+    "legal_document_submissions": [
+      "id"
+    ],
+    "legal_document_templates": [
+      "id"
+    ],
+    "light_channel_maps": [
+      "id"
+    ],
+    "light_labels": [
+      "id"
+    ],
+    "login_history": [
+      "id"
+    ],
+    "logs": [
+      "id"
+    ],
+    "notification_devices": [
+      "id"
+    ],
+    "notifications": [
+      "id"
+    ],
+    "property_document_contents": [
+      "id"
+    ],
+    "property_document_devices": [
+      "id"
+    ],
+    "property_documents": [
+      "id"
+    ],
+    "recycler_info": [
+      "id"
+    ],
+    "scheduled_task_images": [
+      "id"
+    ],
+    "scheduled_tasks_info": [
+      "id"
+    ],
+    "session_ai_audit": [
+      "id"
+    ],
+    "settings": [
+      "id"
+    ],
+    "slideshow_config": [
+      "id"
+    ],
+    "slideshow_images": [
+      "id"
+    ],
+    "slideshow_selections": [
+      "id"
+    ],
+    "storage_info": [
+      "id"
+    ],
+    "t_session_events": [
+      "id"
+    ],
+    "t_session_info": [
+      "id"
+    ],
+    "t_sessions": [
+      "id"
+    ],
+    "tasks": [
+      "id"
+    ],
+    "transactions": [
+      "id"
+    ],
+    "video_sessions": [
+      "id"
+    ]
+  },
+  "unique_constraints": {
+    "admins": [
+      [
+        "email"
+      ]
+    ],
+    "agents": [
+      [
+        "agent_id"
+      ]
+    ],
+    "agents_assigned_devices_info": [
+      [
+        "agent_id",
+        "device_id"
+      ]
+    ],
+    "app_secrets": [
+      [
+        "name"
+      ]
+    ],
+    "camera_capturejobs": [
+      [
+        "capture_job_id"
+      ]
+    ],
+    "cash_events": [
+      [
+        "event_id"
+      ]
+    ],
+    "cashbox": [
+      [
+        "device_id"
+      ]
+    ],
+    "currency_info": [
+      [
+        "device_id",
+        "denomation_value"
+      ]
+    ],
+    "device_oauth": [
+      [
+        "token_hash"
+      ]
+    ],
+    "devices": [
+      [
+        "device_id"
+      ],
+      [
+        "device_secret_hash"
+      ],
+      [
+        "device_secret"
+      ]
+    ],
+    "ext_oauth_codes": [
+      [
+        "code_hash"
+      ]
+    ],
+    "external_api_client_devices": [
+      [
+        "client_id",
+        "device_id"
+      ]
+    ],
+    "external_api_clients": [
+      [
+        "name"
+      ],
+      [
+        "token_hash"
+      ]
+    ],
+    "function_mappings": [
+      [
+        "function_key"
+      ]
+    ],
+    "id_scanjobs": [
+      [
+        "scan_job_id"
+      ]
+    ],
+    "kiosk_installer_versions": [
+      [
+        "installer_type",
+        "version_no"
+      ]
+    ],
+    "kiosk_options": [
+      [
+        "device_id"
+      ]
+    ],
+    "kiosk_receipt_variables": [
+      [
+        "variable_key"
+      ]
+    ],
+    "kiosk_recycler_routes": [
+      [
+        "device_id"
+      ]
+    ],
+    "legal_document_prefills": [
+      [
+        "template_id",
+        "session_id"
+      ]
+    ],
+    "legal_document_print_jobs": [
+      [
+        "print_job_id"
+      ]
+    ],
+    "legal_document_templates": [
+      [
+        "storage_id"
+      ]
+    ],
+    "light_channel_maps": [
+      [
+        "channel"
+      ]
+    ],
+    "light_labels": [
+      [
+        "key"
+      ]
+    ],
+    "notification_devices": [
+      [
+        "notification_id",
+        "device_id"
+      ]
+    ],
+    "property_document_contents": [
+      [
+        "property_document_id",
+        "device_id"
+      ]
+    ],
+    "property_document_devices": [
+      [
+        "property_document_id",
+        "device_id"
+      ]
+    ],
+    "recycler_info": [
+      [
+        "device_id",
+        "denomation_value"
+      ]
+    ],
+    "scheduled_task_images": [
+      [
+        "scheduled_task_id",
+        "image_uuid"
+      ]
+    ],
+    "scheduled_tasks_info": [
+      [
+        "task_id",
+        "occurrence_date"
+      ],
+      [
+        "task_uuid"
+      ]
+    ],
+    "session_ai_audit": [
+      [
+        "session_id"
+      ]
+    ],
+    "settings": [
+      [
+        "setting_key"
+      ]
+    ],
+    "slideshow_config": [
+      [
+        "device_id",
+        "name"
+      ]
+    ],
+    "slideshow_selections": [
+      [
+        "config_id",
+        "storage_file_id"
+      ]
+    ],
+    "t_session_info": [
+      [
+        "session_id"
+      ]
+    ],
+    "t_sessions": [
+      [
+        "session_id"
+      ]
+    ],
+    "video_sessions": [
+      [
+        "device_id"
+      ]
+    ]
+  },
+  "foreign_keys": [
+    [
+      "agents_assigned_devices_info.agent_id",
+      "agents.agent_id"
+    ],
+    [
+      "agents_assigned_devices_info.device_id",
+      "devices.device_id"
+    ],
+    [
+      "app_secrets.created_by_admin_id",
+      "admins.id"
+    ],
+    [
+      "app_secrets.updated_by_admin_id",
+      "admins.id"
+    ],
+    [
+      "camera_capturejobs.device_id",
+      "devices.device_id"
+    ],
+    [
+      "camera_capturejobs.session_id",
+      "t_sessions.session_id"
+    ],
+    [
+      "camera_capturejobs.session_ref_id",
+      "t_sessions.id"
+    ],
+    [
+      "cash_events.session_id",
+      "t_sessions.session_id"
+    ],
+    [
+      "cash_events.session_ref_id",
+      "t_sessions.id"
+    ],
+    [
+      "cashbox.device_id",
+      "devices.device_id"
+    ],
+    [
+      "communication_presets.device_id",
+      "devices.device_id"
+    ],
+    [
+      "currency_info.device_id",
+      "devices.device_id"
+    ],
+    [
+      "device_license_events.device_id",
+      "devices.device_id"
+    ],
+    [
+      "device_oauth.device_id",
+      "devices.device_id"
+    ],
+    [
+      "documents.created_by_agent_id",
+      "agents.agent_id"
+    ],
+    [
+      "documents.device_id",
+      "devices.device_id"
+    ],
+    [
+      "documents.updated_by_agent_id",
+      "agents.agent_id"
+    ],
+    [
+      "ext_oauth_codes.agent_id",
+      "agents.agent_id"
+    ],
+    [
+      "ext_oauth_codes.device_id",
+      "devices.device_id"
+    ],
+    [
+      "external_api_client_devices.client_id",
+      "external_api_clients.id"
+    ],
+    [
+      "external_api_client_devices.device_id",
+      "devices.device_id"
+    ],
+    [
+      "external_api_clients.created_by_admin_id",
+      "admins.id"
+    ],
+    [
+      "external_api_clients.token_regenerated_by_admin_id",
+      "admins.id"
+    ],
+    [
+      "external_api_scopes.created_by_admin_id",
+      "admins.id"
+    ],
+    [
+      "function_mappings.light_label_key",
+      "light_labels.key"
+    ],
+    [
+      "guest_msg_input.session_id",
+      "t_sessions.session_id"
+    ],
+    [
+      "guest_msg_input.session_ref_id",
+      "t_sessions.id"
+    ],
+    [
+      "guest_rating.session_id",
+      "t_sessions.session_id"
+    ],
+    [
+      "guest_rating.session_ref_id",
+      "t_sessions.id"
+    ],
+    [
+      "id_scanjobs.session_id",
+      "t_sessions.session_id"
+    ],
+    [
+      "id_scanjobs.session_ref_id",
+      "t_sessions.id"
+    ],
+    [
+      "kiosk_options.device_id",
+      "devices.device_id"
+    ],
+    [
+      "kiosk_receipt_info.device_id",
+      "devices.device_id"
+    ],
+    [
+      "kiosk_recycler_routes.device_id",
+      "devices.device_id"
+    ],
+    [
+      "legal_document_prefills.device_id",
+      "devices.device_id"
+    ],
+    [
+      "legal_document_prefills.template_id",
+      "legal_document_templates.id"
+    ],
+    [
+      "legal_document_print_jobs.device_id",
+      "devices.device_id"
+    ],
+    [
+      "legal_document_print_jobs.session_ref_id",
+      "t_sessions.id"
+    ],
+    [
+      "legal_document_print_jobs.template_id",
+      "legal_document_templates.id"
+    ],
+    [
+      "legal_document_submissions.device_id",
+      "devices.device_id"
+    ],
+    [
+      "legal_document_submissions.session_ref_id",
+      "t_sessions.id"
+    ],
+    [
+      "legal_document_submissions.template_id",
+      "legal_document_templates.id"
+    ],
+    [
+      "legal_document_templates.device_id",
+      "devices.device_id"
+    ],
+    [
+      "legal_document_templates.storage_id",
+      "storage_info.id"
+    ],
+    [
+      "light_channel_maps.label_key",
+      "light_labels.key"
+    ],
+    [
+      "notification_devices.device_id",
+      "devices.device_id"
+    ],
+    [
+      "notification_devices.notification_id",
+      "notifications.id"
+    ],
+    [
+      "notifications.created_by_admin_id",
+      "admins.id"
+    ],
+    [
+      "property_document_contents.device_id",
+      "devices.device_id"
+    ],
+    [
+      "property_document_contents.property_document_id",
+      "property_documents.id"
+    ],
+    [
+      "property_document_contents.updated_by_agent_id",
+      "agents.agent_id"
+    ],
+    [
+      "property_document_devices.device_id",
+      "devices.device_id"
+    ],
+    [
+      "property_document_devices.property_document_id",
+      "property_documents.id"
+    ],
+    [
+      "property_documents.created_by_admin_id",
+      "admins.id"
+    ],
+    [
+      "recycler_info.device_id",
+      "devices.device_id"
+    ],
+    [
+      "scheduled_task_images.scheduled_task_id",
+      "scheduled_tasks_info.id"
+    ],
+    [
+      "scheduled_task_images.uploaded_by_agent_id",
+      "agents.agent_id"
+    ],
+    [
+      "scheduled_tasks_info.last_agent_id",
+      "agents.agent_id"
+    ],
+    [
+      "scheduled_tasks_info.task_id",
+      "tasks.id"
+    ],
+    [
+      "session_ai_audit.session_id",
+      "t_sessions.session_id"
+    ],
+    [
+      "session_ai_audit.session_ref_id",
+      "t_sessions.id"
+    ],
+    [
+      "slideshow_config.device_id",
+      "devices.device_id"
+    ],
+    [
+      "slideshow_images.device_id",
+      "devices.device_id"
+    ],
+    [
+      "slideshow_selections.config_id",
+      "slideshow_config.id"
+    ],
+    [
+      "slideshow_selections.storage_file_id",
+      "storage_info.id"
+    ],
+    [
+      "storage_info.device_id",
+      "devices.device_id"
+    ],
+    [
+      "t_session_events.device_id",
+      "devices.device_id"
+    ],
+    [
+      "t_session_events.session_id",
+      "t_sessions.session_id"
+    ],
+    [
+      "t_session_events.session_ref_id",
+      "t_sessions.id"
+    ],
+    [
+      "t_session_info.session_id",
+      "t_sessions.session_id"
+    ],
+    [
+      "t_session_info.session_ref_id",
+      "t_sessions.id"
+    ],
+    [
+      "t_sessions.agent_id",
+      "agents.agent_id"
+    ],
+    [
+      "t_sessions.device_id",
+      "devices.device_id"
+    ],
+    [
+      "t_sessions.started_by_agent_id",
+      "agents.agent_id"
+    ],
+    [
+      "tasks.device_id",
+      "devices.device_id"
+    ],
+    [
+      "transactions.device_id",
+      "devices.device_id"
+    ],
+    [
+      "video_sessions.device_id",
+      "devices.device_id"
+    ]
+  ],
+  "enums": {
+    "cash_event_source": [
+      "cash_event",
+      "device_state",
+      "dispenser_tx",
+      "module_state"
+    ],
+    "cash_event_type": [
+      "ESCROW",
+      "STACKED",
+      "STACKED_FRAUD_ATTEMPT",
+      "STORED",
+      "STORED_FRAUD_ATTEMPT",
+      "DISPENSING",
+      "DISPENSED",
+      "RETURNED",
+      "RETRIEVED",
+      "MOVED_TO_CASHBOX",
+      "NOTE_IN_BEZEL_HOLD",
+      "NOT_CONNECTED",
+      "CONNECTING",
+      "INITIALISING",
+      "INITIALISED",
+      "DISABLED",
+      "IDLE",
+      "ACCEPTING",
+      "ERROR",
+      "FLOATING",
+      "EMPTYING",
+      "JAM_RECOVERY",
+      "CASHBOX_REPLACED",
+      "PAYOUT_COMPLETED",
+      "PAYOUT_ERROR",
+      "MODULE_CHANGED"
+    ],
+    "currency_code": [
+      "USD"
+    ],
+    "ext_oauth_client_id": [
+      "pms-autofill"
+    ],
+    "ext_oauth_code_challenge_method": [
+      "S256"
+    ],
+    "scheduled_task_status": [
+      "pending",
+      "draft",
+      "completed",
+      "cancelled"
+    ],
+    "storage_category": [
+      "general",
+      "legal_document"
+    ],
+    "storage_file_type": [
+      "image",
+      "pdf"
+    ],
+    "t_session_event_category": [
+      "receipt",
+      "key_dispenser",
+      "show_message",
+      "voice_over"
+    ],
+    "task_kind": [
+      "one_time",
+      "recurring"
+    ],
+    "task_priority": [
+      "low",
+      "medium",
+      "high",
+      "urgent"
+    ],
+    "weekday": [
+      "MON",
+      "TUE",
+      "WED",
+      "THU",
+      "FRI",
+      "SAT",
+      "SUN"
+    ]
+  }
+}

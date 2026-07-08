@@ -1,0 +1,103 @@
+<title>doc-chat-service test</title>
+
+<h1>doc-chat-service test</h1>
+
+<p>
+  <button onclick="checkHealth()">Check /health</button>
+  <span id="health"></span>
+</p>
+
+<form id="chatForm">
+  <label>query <input id="query" value="how do I reset it?" size="50"></label><br>
+  <label>user_role <input id="user_role" value="agent"></label><br>
+  <label>device_id <input id="device_id" value="device-001"></label><br>
+  <button type="submit">Send /chat</button>
+</form>
+
+<h3>Status</h3>
+<pre id="status"></pre>
+
+<h3>Response</h3>
+<pre id="output"></pre>
+
+<script>
+  const BASE_URL = "http://localhost:8000";
+
+  async function checkHealth() {
+    const el = document.getElementById("health");
+    try {
+      const res = await fetch(BASE_URL + "/health");
+      const body = await res.json();
+      el.textContent = res.status + " " + JSON.stringify(body);
+    } catch (err) {
+      el.textContent = "failed: " + err;
+    }
+  }
+
+  document.getElementById("chatForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const statusEl = document.getElementById("status");
+    const outputEl = document.getElementById("output");
+    statusEl.textContent = "";
+    outputEl.textContent = "";
+
+    const payload = {
+      query: document.getElementById("query").value,
+      user_role: document.getElementById("user_role").value,
+      device_id: document.getElementById("device_id").value,
+    };
+
+    let res;
+    try {
+      res = await fetch(BASE_URL + "/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch (err) {
+      statusEl.textContent = "request failed: " + err;
+      return;
+    }
+
+    statusEl.textContent = "HTTP " + res.status;
+
+    if (!res.ok) {
+      outputEl.textContent = await res.text();
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      let sepIndex;
+      while ((sepIndex = buffer.indexOf("\n\n")) !== -1) {
+        const rawEvent = buffer.slice(0, sepIndex);
+        buffer = buffer.slice(sepIndex + 2);
+
+        let eventName = "message";
+        let dataLine = "";
+        for (const line of rawEvent.split("\n")) {
+          if (line.startsWith("event:")) eventName = line.slice(6).trim();
+          if (line.startsWith("data:")) dataLine = line.slice(5).trim();
+        }
+
+        if (eventName === "token") {
+          try {
+            outputEl.textContent += JSON.parse(dataLine).content;
+          } catch {
+            outputEl.textContent += dataLine;
+          }
+        } else {
+          outputEl.textContent += "\n[" + eventName + "] " + dataLine + "\n";
+        }
+      }
+    }
+  });
+</script>

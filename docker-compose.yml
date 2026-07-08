@@ -1,6 +1,31 @@
 services:
 
-  # ── Single shared PostgreSQL (chatbot cache + RAG chunks) ─────────────────
+  # ── Free local receptionist model (chit-chat / off-topic guardrail) ───────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: chatbot-ollama
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    environment:
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5-coder:1.5b}
+    volumes:
+      - ollama_data:/root/.ollama
+      - ./scripts/ollama-entrypoint.sh:/entrypoint.sh:ro
+    # No published port — portal_a reaches this over the internal Docker
+    # network at http://ollama:11434. Ollama has no built-in auth, so it must
+    # never be exposed to the host/public network. For local debugging only,
+    # temporarily add: "127.0.0.1:11434:11434" (bind to loopback, not 0.0.0.0).
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  # ── Single shared PostgreSQL (chatbot cache, RAG chunks, customer_module's
+  #    Vanna vector store, and doc-chat-service's property_document_contents —
+  #    each in its own table; the real Kiotel business DB customer_module
+  #    queries is separate and external, see the `customer_module` service below) ─
   postgres:
     image: pgvector/pgvector:pg16
     container_name: chatbot-postgres
@@ -61,6 +86,83 @@ services:
       retries: 5
       start_period: 120s
 
+  # ── customer_module API (QueryWeaver): natural language -> SQL -> Kiotel
+  #    business DB ──────────────────────────────────────────────────────────
+  # Its Vanna vector store (schema DDL/documentation/example SQL only — never
+  # real business data) lives in the shared `postgres` service below, in its
+  # own vanna_ddl/vanna_documentation/vanna_sql tables (auto-created on
+  # connect by HybridPGVectorStore). The actual business DB it queries
+  # (PGHOST/PGDATABASE/PGUSER/PGPASSWORD, read-only role) is a SEPARATE,
+  # external database this repo does not bundle — never point that at
+  # `postgres` above. No published host port — reached only internally by
+  # portal_a, same as ollama.
+  customer_module:
+    build:
+      context: ./services/customer_module
+    container_name: customer-module-api
+    command: ["uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000"]
+    env_file:
+      - .env
+    environment:
+      # Real Kiotel business DB (read-only role), fully separate from the
+      # `postgres` cache service below. This repo doesn't bundle that
+      # database; point these at wherever it's actually hosted.
+      PGHOST: ${CUSTOMER_MODULE_PGHOST}
+      PGPORT: ${CUSTOMER_MODULE_PGPORT:-5432}
+      PGDATABASE: ${CUSTOMER_MODULE_PGDATABASE}
+      PGUSER: ${CUSTOMER_MODULE_PGUSER}
+      PGPASSWORD: ${CUSTOMER_MODULE_PGPASSWORD}
+      PG_STATEMENT_TIMEOUT_MS: ${CUSTOMER_MODULE_PG_STATEMENT_TIMEOUT_MS:-5000}
+      DEFAULT_ROW_LIMIT: ${CUSTOMER_MODULE_DEFAULT_ROW_LIMIT:-5}
+      # Vanna's own retrieval store — shared `postgres` service, different tables.
+      VECTOR_DB_HOST: postgres
+      VECTOR_DB_PORT: 5432
+      VECTOR_DB_NAME: chatbot
+      VECTOR_DB_USER: chatbot
+      VECTOR_DB_PASSWORD: chatbot
+      EMBEDDING_MODEL: ${CUSTOMER_MODULE_EMBEDDING_MODEL:-BAAI/bge-small-en-v1.5}
+      RETRIEVAL_TOP_K: ${CUSTOMER_MODULE_RETRIEVAL_TOP_K:-6}
+      API_KEY: ${CUSTOMER_MODULE_API_KEY:-}
+      FASTEMBED_CACHE_PATH: /model_cache
+    volumes:
+      - customer_module_model_cache:/model_cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── doc-chat-service API: per-device property document Q&A ─────────────────
+  # property_document_contents lives in the shared `postgres` service below
+  # (alembic/versions/0002_add_property_document_contents.py) — a LOCAL
+  # mirror table, not the real kiosk-dashboard production table (see
+  # services/workflow/db/init.sql for the production note). No published
+  # host port — it has no real auth (user_role is self-declared), reached
+  # only internally by portal_a.
+  doc_chat:
+    build:
+      context: ./services/workflow
+    container_name: doc-chat-api
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://chatbot:chatbot@postgres:5432/chatbot
+      REQUIRED_USER_ROLE: ${DOC_CHAT_REQUIRED_USER_ROLE:-agent}
+      CORS_ALLOW_ORIGINS: ${DOC_CHAT_CORS_ALLOW_ORIGINS:-*}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
   # ── Portal A Chatbot ──────────────────────────────────────────────────────
   portal_a:
     build:
@@ -73,6 +175,10 @@ services:
     environment:
       PG_DSN: postgresql://chatbot:chatbot@postgres:5432/chatbot
       KIOTEL_RAG_URL: http://kiotel_rag:8000
+      OLLAMA_HOST: http://ollama:11434
+      CUSTOMER_MODULE_URL: http://customer_module:8000
+      CUSTOMER_MODULE_API_KEY: ${CUSTOMER_MODULE_API_KEY:-}
+      DOC_CHAT_URL: http://doc_chat:8000
     volumes:
       - ./logs:/app/logs
     depends_on:
@@ -81,6 +187,12 @@ services:
       migrate:
         condition: service_completed_successfully
       kiotel_rag:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+      customer_module:
+        condition: service_healthy
+      doc_chat:
         condition: service_healthy
     restart: unless-stopped
 
@@ -127,3 +239,5 @@ services:
 
 volumes:
   pgdata:
+  ollama_data:
+  customer_module_model_cache:

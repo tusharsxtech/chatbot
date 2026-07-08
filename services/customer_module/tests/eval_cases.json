@@ -1,0 +1,16 @@
+[
+  
+  {
+    "question": "List sessions that have both an ID scan job and a legal document submission, showing the device, agent, and how many of each they have.",
+    "gold_sql": "SELECT t.session_id, d.device_name, a.agent_name, COUNT(DISTINCT isj.id) AS scan_jobs, COUNT(DISTINCT lds.id) AS document_submissions FROM t_sessions t JOIN devices d ON d.device_id = t.device_id JOIN agents a ON a.agent_id = t.agent_id JOIN id_scanjobs isj ON isj.session_ref_id = t.id JOIN legal_document_submissions lds ON lds.session_ref_id = t.id GROUP BY t.session_id, d.device_name, a.agent_name"
+  },
+  {
+    "question": "For each agent, show how many devices they are assigned to and how many of those assignments allow the receipt designer delete permission.",
+    "gold_sql": "SELECT a.agent_id, a.agent_name, COUNT(*) AS assigned_devices, COUNT(*) FILTER (WHERE aadi.receipt_designer_delete = '1') AS with_delete_permission FROM agents a JOIN agents_assigned_devices_info aadi ON aadi.agent_id = a.agent_id GROUP BY a.agent_id, a.agent_name ORDER BY assigned_devices DESC"
+  },
+  {
+    "question": "Find the top 3 devices with the most STACKED_FRAUD_ATTEMPT or STORED_FRAUD_ATTEMPT cash events in the last 60 days, showing the device name and count.",
+    "gold_sql": "SELECT d.device_id, d.device_name, COUNT(*) AS fraud_attempt_count FROM cash_events ce JOIN t_sessions t ON t.id = ce.session_ref_id JOIN devices d ON d.device_id = t.device_id WHERE ce.event_type IN ('STACKED_FRAUD_ATTEMPT', 'STORED_FRAUD_ATTEMPT') AND ce.created_at >= NOW() - INTERVAL '60 days' GROUP BY d.device_id, d.device_name ORDER BY fraud_attempt_count DESC LIMIT 3"
+  }
+
+]

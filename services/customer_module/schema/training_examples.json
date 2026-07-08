@@ -1,0 +1,46 @@
+[
+  {
+    "question": "Find devices where the total cash deposited (event_type = 'deposit' in cash_events) exceeds the cashbox capacity set in kiosk_options, showing device name, total deposited, and capacity",
+    "sql": "SELECT d.device_name, SUM(ce.denomination) AS total_deposited, ko.cashbox_capacity\nFROM cash_events ce\nJOIN t_sessions ts ON ce.session_id = ts.session_id\nJOIN devices d ON ts.device_id = d.device_id\nJOIN kiosk_options ko ON d.device_id = ko.device_id\nWHERE ce.event_type = 'deposit'\nGROUP BY d.device_name, ko.cashbox_capacity\nHAVING SUM(ce.denomination) > ko.cashbox_capacity"
+  },
+  {
+    "question": "Show all transactions along with the device name and location for each",
+    "sql": "SELECT t.*, d.device_name, d.device_location\nFROM transactions t\nJOIN devices d ON t.device_id = d.device_id"
+  },
+  {
+    "question": "How many storage files does each device have, broken down by file type?",
+    "sql": "SELECT d.device_name, si.file_type, COUNT(*) AS file_count\nFROM storage_info si\nJOIN devices d ON si.device_id = d.device_id\nGROUP BY d.device_name, si.file_type"
+  },
+  {
+    "question": "For each device, show the device name and the number of distinct agents who have started a session on it, ordered by that count descending, limited to the top 5 devices.",
+    "sql": "SELECT d.device_id, d.device_name, COUNT(DISTINCT t.started_by_agent_id) AS distinct_agents FROM devices d JOIN t_sessions t ON t.device_id = d.device_id GROUP BY d.device_id, d.device_name ORDER BY distinct_agents DESC LIMIT 5"
+  },
+  {
+    "question": "List the top 10 sessions with the highest total cash amount stacked, including the device name and agent name, ordered by total amount descending.",
+    "sql": "SELECT t.session_id, d.device_name, a.agent_name, SUM(ce.denomination) AS total_stacked FROM t_sessions t JOIN devices d ON d.device_id = t.device_id JOIN agents a ON a.agent_id = t.agent_id JOIN cash_events ce ON ce.session_ref_id = t.id WHERE ce.event_type = 'STACKED' GROUP BY t.session_id, d.device_name, a.agent_name ORDER BY total_stacked DESC LIMIT 10"
+  },
+  {
+    "question": "For every device, show its current cashbox balance per currency alongside how many active, non-deleted tasks are assigned to it.",
+    "sql": "SELECT d.device_id, d.device_name, cb.currency, cb.amount, (SELECT COUNT(*) FROM tasks ta WHERE ta.device_id = d.device_id AND ta.is_active = true AND ta.is_deleted = false) AS active_task_count FROM devices d LEFT JOIN cashbox cb ON cb.device_id = d.device_id ORDER BY d.device_id"
+  },
+  {
+    "question": "Find agents who have an average guest rating below 3 across all their sessions, including the number of ratings they received.",
+    "sql": "SELECT t.agent_id, a.agent_name, AVG(gr.rating) AS avg_rating, COUNT(gr.id) AS rating_count FROM t_sessions t JOIN agents a ON a.agent_id = t.agent_id JOIN guest_rating gr ON gr.session_ref_id = t.id GROUP BY t.agent_id, a.agent_name HAVING AVG(gr.rating) < 3 ORDER BY avg_rating ASC"
+  },
+  {
+    "question": "For each device, list the most recent scheduled task occurrence along with its status and the last agent who touched it.",
+    "sql": "SELECT sub.device_id, sub.title, sub.occurrence_date, sub.status, sub.last_agent_id FROM ( SELECT ta.device_id, ta.title, sti.occurrence_date, sti.status, sti.last_agent_id, ROW_NUMBER() OVER (PARTITION BY ta.device_id ORDER BY sti.occurrence_date DESC) AS rn FROM scheduled_tasks_info sti JOIN tasks ta ON ta.id = sti.task_id ) sub WHERE sub.rn = 1"
+  },
+  {
+    "question": "Show the total transaction amount and refund amount per device for confirmed transactions in the last 90 days, only for devices with total amount over 1000.",
+    "sql": "SELECT tr.device_id, d.device_name, SUM(tr.total_amount) AS total_amount, SUM(tr.refund_amount) AS total_refund FROM transactions tr JOIN devices d ON d.device_id = tr.device_id WHERE tr.is_confirmed = 1 AND tr.posted_date >= NOW() - INTERVAL '90 days' GROUP BY tr.device_id, d.device_name HAVING SUM(tr.total_amount) > 1000 ORDER BY total_amount DESC"
+  },
+  {
+    "question": "Show the property document workflow for device id 2520",
+    "sql": "SELECT pd.id, pd.title, pd.color, pdd.created_at AS linked_at\nFROM property_document_devices pdd\nJOIN property_documents pd ON pd.id = pdd.property_document_id\nWHERE pdd.device_id = '2520'"
+  },
+  {
+    "question": "Show transactions for session id 1A03E7A6C9B800AF",
+    "sql": "SELECT t.*\nFROM transactions t\nJOIN t_session_info tsi\n  ON tsi.guest_name = t.guest_name AND tsi.room_no = t.room_no AND tsi.account_no = t.account_no\nWHERE tsi.session_id = '1A03E7A6C9B800AF'"
+  }
+]

@@ -259,10 +259,7 @@ async def node_tool_router(data: dict) -> dict:
         state.metadata["tool_results"] = {}
         return {"state": state}
 
-    services_schema = [
-        {"name": t.name, "description": t.description}
-        for t in registry.all_tools(state.portal_id)
-    ]
+    services_schema = registry.as_llm_schema(state.portal_id)
     l1_ctx = state.metadata.get("l1_context", "")
     chat_history = [
         {"role": m.role.value if hasattr(m.role, "value") else m.role, "content": m.content}

@@ -361,19 +361,19 @@ async def call_llm_for_faithfulness(response_text: str, grounding_context: str) 
 
 CLASSIFY_AND_ROUTE_SYSTEM = """You are the brain of a support chatbot. Your job is to understand the user query and route it to the correct service.
 
-Each service has a name, description, and example queries. Use these to decide routing.
+Each service has a name, description, keywords, and example queries. Use all of these to decide routing.
 
 Query types:
 - greeting: "hi", "hello", "thanks", "how are you", "who are you", casual small talk
 - escalation: urgent problem, angry user, billing error, legal threat, emergency
 - chit_chat: general knowledge with no service match ("what is AI", "tell me a joke", "what year is it")
-- service_query: the query matches a service domain or its example queries
+- service_query: the query matches a service domain, its keywords, or its example queries
 - multi_query: user asked 2+ distinct questions in one message
 
 How to route:
-1. Read each service description and its example queries carefully
-2. If the user query is similar in intent to any example query → pick that service
-3. If the query is about the service domain even without an exact example match → pick that service
+1. Read each service description, keywords, and example queries carefully
+2. If the user query is similar in intent to any example query or keyword → pick that service
+3. If the query is about the service domain even without an exact example/keyword match → pick that service
 4. If nothing matches → chit_chat with services=[]
 5. If multiple services match → include all of them
 
@@ -405,6 +405,8 @@ async def call_llm_for_classify_and_route(
     Each service in services_schema should have:
         name: str
         description: str  — rich domain description drives routing accuracy
+        keywords: list[str]  — short trigger phrases that reinforce routing
+        intents: list[str]
     """
     messages = [SystemMessage(content=CLASSIFY_AND_ROUTE_SYSTEM)]
 

@@ -198,6 +198,12 @@ services:
       REQUIRED_USER_ROLE: ${DOC_CHAT_REQUIRED_USER_ROLE:-agent}
       CORS_ALLOW_ORIGINS: ${DOC_CHAT_CORS_ALLOW_ORIGINS:-*}
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   # ── Portal A Chatbot ──────────────────────────────────────────────────────
   portal_a:

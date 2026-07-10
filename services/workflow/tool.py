@@ -61,13 +61,20 @@ def _call_doc_chat(question: str, device_id: str, user_role: str) -> dict:
     description=(
         '''Kiotel Property Document Assistant
            Use this tool to answer questions about a SPECIFIC property/device's own uploaded
-           documents — lease terms, property-specific instructions, on-site procedures, and
-           other content stored as property documents for that device. Requires a device_id
-           (the device/kiosk currently in context) to scope the search — if no device is in
-           context, do not select this tool.
+           documents — lease terms, property-specific instructions, on-site procedures,
+           property workflows (e.g. move-in/move-out steps, pet policy, parking rules,
+           maintenance requests, amenity access), and other content stored as property
+           documents for that device. Requires a device_id (the device/kiosk currently in
+           context) to scope the search — if no device is in context, do not select this tool.
 
            Do NOT use this tool for general Kiotel dashboard/software how-to questions (use the
-           documentation RAG tool) or for live business-data lookups (use the customer_module tool).'''
+           documentation RAG tool) or for live business-data lookups (use the customer_module tool).
+
+           Example queries that SHOULD use this service:
+               'what is the pet policy', 'what is the property workflow',
+               'what is the move-in process', 'what are the parking rules',
+               'how do I submit a maintenance request for this property',
+               'what does the lease say about renewal' '''
     ),
     keywords=[
         "property document", "lease", "this property", "this device",

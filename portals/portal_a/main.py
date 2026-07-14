@@ -23,7 +23,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from packages.shared.types import OrchestratorState, ChatMessage, MessageRole, IntentType
-from packages.ai_layer.orchestrator import run_orchestrator_stream
+from packages.ai_layer.orchestrator import run_orchestrator, run_orchestrator_stream
 from services.cache.l2_store import stats as l2_stats, invalidate_version
 from services.cache.warmer import warm
 
@@ -283,7 +283,7 @@ async def chat_debug(req: ChatRequest):
         frontend_version="v1",
     )
     try:
-        result = run_orchestrator_stream(state)
+        result = await run_orchestrator(state)
         return {
             "response": result.final_response.content if result.final_response else None,
             "errors": result.metadata.get("errors", []),

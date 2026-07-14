@@ -32,6 +32,16 @@ PORTAL_GUARDRAIL_CONFIG = {
 
 DEFAULT_CONFIG = {"blocked_topics": [], "restricted_topics": []}
 
+# Deterministic, code-enforced reply for off-topic chit_chat (no Kiotel service
+# matched the query). Never sent to any LLM — the receptionist persona prompt
+# alone is not a reliable guardrail against small local models answering
+# general-knowledge questions anyway.
+OFF_TOPIC_REDIRECT_MESSAGE = (
+    "I'm the Kiotel assistant, so I can only help with things related to Kiotel — "
+    "the dashboard, your account, property documents, or step-by-step guidance. "
+    "What would you like help with in Kiotel?"
+)
+
 
 def check_input(raw_text: str, portal_id: str = "portal_a", user_role: str = "user") -> GuardrailResult:
     if not raw_text or not raw_text.strip():

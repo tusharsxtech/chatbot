@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-MODEL="${OLLAMA_MODEL:-qwen2.5-coder:1.5b}"
+MODEL="${OLLAMA_MODEL:-qwen2.5:1.5b}"
 
 ollama serve &
 SERVER_PID=$!

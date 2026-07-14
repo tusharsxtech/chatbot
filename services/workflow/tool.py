@@ -79,6 +79,13 @@ def _call_doc_chat(question: str, device_id: str, user_role: str) -> dict:
     keywords=[
         "property document", "lease", "this property", "this device",
         "site procedure", "property instructions", "on-site",
+        # Condensed from a real property manual's table of contents — grouped
+        # by topic rather than listed as every raw heading, to avoid bloating
+        "night audit", "shift summary", "no-show policy", "payments and deposits",
+        "check-in and check-out", "room allocation", "pet policy", "service animal",
+        "smoking policy", "housekeeping", "PMS login", "OTA support",
+        "vendor contacts", "dashboard password", "facilities and amenities",
+        "property rules", "rate plans", "breakfast service", "safety and incidents",
     ],
     intents=["knowledge_query", "general"],
     input_schema={

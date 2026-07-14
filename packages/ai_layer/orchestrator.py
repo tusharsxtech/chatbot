@@ -16,7 +16,7 @@ from packages.shared.types import (
     GuardrailResult, EscalationResult,
 )
 from packages.shared.utils import split_multi_query, detect_escalation_triggers
-from packages.ai_layer.guardrails import check_input, check_output
+from packages.ai_layer.guardrails import check_input, check_output, OFF_TOPIC_REDIRECT_MESSAGE
 from packages.ai_layer.gateway import (
     call_llm, call_llm_stream, call_llm_for_rewrite,
     call_llm_for_faithfulness, call_llm_for_classify_and_route,
@@ -370,7 +370,9 @@ async def node_handle_multi_query(data: dict) -> dict:
     async def _process_sub_query(sub_q: str) -> str:
         try:
             decision = await call_llm_for_classify_and_route(sub_q, services_schema, history_context=l1_ctx)
-            if decision["query_type"] in ("greeting", "chit_chat"):
+            if decision["query_type"] == "chit_chat":
+                return OFF_TOPIC_REDIRECT_MESSAGE
+            if decision["query_type"] == "greeting":
                 return await call_ollama_receptionist(sub_q, state.messages)
 
             sub_tools = {}
@@ -502,7 +504,19 @@ async def node_generate_response(data: dict) -> dict:
 
     intent = state.intent.primary_intent if state.intent else IntentType.GENERAL
 
-    if state.metadata.get("tool_route", {}).get("is_chit_chat"):
+    query_type = state.metadata.get("tool_route", {}).get("query_type")
+    if query_type == "chit_chat":
+        # Off-topic — no Kiotel service matched. Never sent to an LLM: the
+        # receptionist persona prompt alone doesn't reliably stop a small
+        # local model from just answering general-knowledge questions.
+        state.final_response = AIResponse(
+            content=OFF_TOPIC_REDIRECT_MESSAGE,
+            intent=intent,
+            metadata=state.metadata.get("tool_route", {}),
+        )
+        return {"state": state}
+
+    if query_type == "greeting":
         try:
             response_text = await call_ollama_receptionist(state.sanitized_input, state.messages)
         except Exception as e:
@@ -895,9 +909,16 @@ async def run_orchestrator_stream(state: OrchestratorState):
                 final_metadata["device_id"] = ps.device_id
             final_intent = ps.intent.primary_intent if ps.intent else IntentType.GENERAL
 
-        elif ps.metadata.get("tool_route", {}).get("is_chit_chat"):
-            # Chit-chat / off-topic — guardrailed receptionist (free Ollama, paid-LLM
-            # fallback on breaker-open), no dedicated streaming path since replies are short.
+        elif ps.metadata.get("tool_route", {}).get("query_type") == "chit_chat":
+            # Off-topic — no Kiotel service matched. Deterministic redirect,
+            # never sent to an LLM (see node_generate_response for why).
+            full_response = OFF_TOPIC_REDIRECT_MESSAGE
+            for word in full_response.split(" "):
+                yield json.dumps({"type": "chunk", "text": word + " "})
+
+        elif ps.metadata.get("tool_route", {}).get("query_type") == "greeting":
+            # Greeting / on-topic small talk — guardrailed receptionist (free Ollama,
+            # paid-LLM fallback on breaker-open), no dedicated streaming path since replies are short.
             try:
                 receptionist_reply = await call_ollama_receptionist(ps.sanitized_input, ps.messages)
             except Exception as e:

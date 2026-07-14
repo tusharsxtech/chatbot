@@ -6,7 +6,7 @@ services:
     container_name: chatbot-ollama
     entrypoint: ["/bin/sh", "/entrypoint.sh"]
     environment:
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5-coder:1.5b}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:1.5b}
     volumes:
       - ollama_data:/root/.ollama
       - ./scripts/ollama-entrypoint.sh:/entrypoint.sh:ro

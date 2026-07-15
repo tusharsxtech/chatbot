@@ -21,9 +21,9 @@ class Settings(BaseSettings):
     llm_request_timeout: float = 120.0
 
     # Retrieval / prompt shaping
-    max_docs_per_query: int = 3
-    max_chars_per_doc: int = 6000
-    max_total_context_chars: int = 12000
+    max_docs_per_query: int = 5
+    max_chars_per_doc: int = 12000
+    max_total_context_chars: int = 40000
 
     # App
     app_name: str = "doc-chat-service"

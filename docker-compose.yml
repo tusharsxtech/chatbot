@@ -6,11 +6,11 @@ services:
     container_name: chatbot-ollama
     entrypoint: ["/bin/sh", "/entrypoint.sh"]
     environment:
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5-coder:1.5b}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:1.5b}
     volumes:
       - ollama_data:/root/.ollama
       - ./scripts/ollama-entrypoint.sh:/entrypoint.sh:ro
-    # No published port — portal_a reaches this over the internal Docker
+    # No published port — kiotel_chatbot reaches this over the internal Docker
     # network at http://ollama:11434. Ollama has no built-in auth, so it must
     # never be exposed to the host/public network. For local debugging only,
     # temporarily add: "127.0.0.1:11434:11434" (bind to loopback, not 0.0.0.0).
@@ -95,7 +95,7 @@ services:
   # (PGHOST/PGDATABASE/PGUSER/PGPASSWORD, read-only role) is a SEPARATE,
   # external database this repo does not bundle — never point that at
   # `postgres` above. No published host port — reached only internally by
-  # portal_a, same as ollama.
+  # kiotel_chatbot, same as ollama.
   customer_module:
     build:
       context: ./services/customer_module
@@ -186,7 +186,7 @@ services:
   # alembic/versions/0002_add_property_document_contents.py in the shared
   # `postgres` service is no longer used by this service (left in place,
   # harmless). No published host port — it has no real auth (user_role is
-  # self-declared), reached only internally by portal_a.
+  # self-declared), reached only internally by kiotel_chatbot.
   doc_chat:
     build:
       context: ./services/workflow
@@ -205,11 +205,11 @@ services:
       retries: 10
       start_period: 30s
 
-  # ── Portal A Chatbot ──────────────────────────────────────────────────────
-  portal_a:
+  # ── Kiotel Chatbot ─────────────────────────────────────────────────────────
+  kiotel_chatbot:
     build:
       context: .
-    container_name: portal-a
+    container_name: kiotel-chatbot
     ports:
       - "8010:8000"
     env_file:

@@ -32,7 +32,7 @@ client = ChatOpenAI(
 )
 
 _intent_client = ChatOpenAI(
-    model=MODEL, temperature=0.0, max_tokens=300,
+    model=MODEL, temperature=0.5, max_tokens=300,
     base_url=_LLM_BASE_URL, api_key=_LLM_API_KEY, timeout=60.0, max_retries=1,
 )
 _rewrite_client = ChatOpenAI(
@@ -44,7 +44,7 @@ _faithfulness_client = ChatOpenAI(
     base_url=_LLM_BASE_URL, api_key=_LLM_API_KEY, timeout=60.0, max_retries=1,
 )
 _classify_client = ChatOpenAI(
-    model=MODEL, temperature=0.0, max_tokens=400,
+    model=MODEL, temperature=0.5, max_tokens=400,
     base_url=_LLM_BASE_URL, api_key=_LLM_API_KEY, timeout=60.0, max_retries=1,
 )
 
@@ -158,7 +158,7 @@ LLM_REQUEST_TIMEOUT = float(os.getenv("LLM_REQUEST_TIMEOUT", "60.0"))
 # an Ollama outage can never affect the main service, and vice versa.
 # ---------------------------------------------------------------------------
 _OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-_OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:1.5b")
+_OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:1.5b")
 _OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "20.0"))
 
 _receptionist_client = ChatOpenAI(
@@ -376,6 +376,12 @@ How to route:
 3. If the query is about the service domain even without an exact example/keyword match → pick that service
 4. If nothing matches → chit_chat with services=[]
 5. If multiple services match → include all of them
+6. Every conversation in this system already has a specific property/device selected. Treat short
+   or vague questions (fees, rates, rules, policies, procedures, "included?", "allowed?", etc.) as
+   PLAUSIBLY about that property's documents and prefer kiotel_property_docs over chit_chat — the
+   user is very likely continuing to ask about the same property without repeating "for this
+   property" every time. Only fall back to chit_chat if the query is unambiguously unrelated to
+   any service domain (e.g. celebrities, coding, weather, general trivia).
 
 Return ONLY this JSON, no markdown, no explanation, no extra text:
 {

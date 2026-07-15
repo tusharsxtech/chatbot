@@ -23,7 +23,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from packages.shared.types import OrchestratorState, ChatMessage, MessageRole, IntentType
-from packages.ai_layer.orchestrator import run_orchestrator_stream
+from packages.ai_layer.orchestrator import run_orchestrator, run_orchestrator_stream
 from services.cache.l2_store import stats as l2_stats, invalidate_version
 from services.cache.warmer import warm
 
@@ -56,7 +56,7 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(bearer_sche
 #-----------------------End of Authorization Token Middleware-----------------------#
 
 app = FastAPI(
-    title="Portal A - Intelligent Chatbot",
+    title="Kiotel Chatbot - Intelligent Chatbot",
     version="1.0.0",
     dependencies=[Depends(verify_token)],
 )
@@ -79,7 +79,7 @@ app.add_middleware(
 _static_path = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=_static_path), name="static")
 
-PORTAL_ID = "portal_a"
+PORTAL_ID = "kiotel_chatbot"
 _sessions: dict[str, list[ChatMessage]] = {}
 
 RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("CHAT_RATE_LIMIT_WINDOW_SECONDS", "60"))
@@ -283,7 +283,7 @@ async def chat_debug(req: ChatRequest):
         frontend_version="v1",
     )
     try:
-        result = run_orchestrator_stream(state)
+        result = await run_orchestrator(state)
         return {
             "response": result.final_response.content if result.final_response else None,
             "errors": result.metadata.get("errors", []),

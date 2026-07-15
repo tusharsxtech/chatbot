@@ -56,7 +56,7 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(bearer_sche
 #-----------------------End of Authorization Token Middleware-----------------------#
 
 app = FastAPI(
-    title="Portal A - Intelligent Chatbot",
+    title="Kiotel Chatbot - Intelligent Chatbot",
     version="1.0.0",
     dependencies=[Depends(verify_token)],
 )
@@ -79,7 +79,7 @@ app.add_middleware(
 _static_path = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=_static_path), name="static")
 
-PORTAL_ID = "portal_a"
+PORTAL_ID = "kiotel_chatbot"
 _sessions: dict[str, list[ChatMessage]] = {}
 
 RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("CHAT_RATE_LIMIT_WINDOW_SECONDS", "60"))

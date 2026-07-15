@@ -15,4 +15,4 @@ ENV PYTHONPATH=/app
 
 EXPOSE 8000
 
-CMD ["python", "-m", "uvicorn", "portals.portal_a.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "portals.kiotel_chatbot.main:app", "--host", "0.0.0.0", "--port", "8000"]

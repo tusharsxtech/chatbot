@@ -1,7 +1,7 @@
 import sys
 sys.path.insert(0, "/app")
 
-# registers account info and usage stats as tools — portal_a only
+# registers account info and usage stats as tools — kiotel_chatbot only
 
 from packages.ai_layer.tool_registry import register_tool
 from services.account.service import get_account_info, get_usage
@@ -13,7 +13,7 @@ from services.account.service import get_account_info, get_usage
     keywords=["account id", "name", "attempts"],
     intents=["knowledge_query", "general"],
     input_schema={"email": "string"},
-    portal_ids=["portal_a"],
+    portal_ids=["kiotel_chatbot"],
 )
 def get_account_info_tool(inputs: dict) -> dict:
     return get_account_info(inputs.get("email", ""))
@@ -25,7 +25,7 @@ def get_account_info_tool(inputs: dict) -> dict:
     keywords=["usage", "quota", "api calls", "storage", "limit", "consumed", "stats"],
     intents=["knowledge_query"],
     input_schema={"email": "string"},
-    portal_ids=["portal_a"],
+    portal_ids=["kiotel_chatbot"],
 )
 def get_usage_stats_tool(inputs: dict) -> dict:
     return get_usage(inputs.get("email", ""))

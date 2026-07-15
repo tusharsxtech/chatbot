@@ -6,7 +6,7 @@ from packages.shared.types import GuardrailResult
 MAX_INPUT_LENGTH = 1500
 
 PORTAL_GUARDRAIL_CONFIG = {
-    "portal_a": {
+    "kiotel_chatbot": {
         "blocked_topics": [
             {"pattern": "how to hack", "reason": "Security policy violation."},
             {"pattern": "make a bomb", "reason": "Safety policy violation."},
@@ -43,7 +43,7 @@ OFF_TOPIC_REDIRECT_MESSAGE = (
 )
 
 
-def check_input(raw_text: str, portal_id: str = "portal_a", user_role: str = "user") -> GuardrailResult:
+def check_input(raw_text: str, portal_id: str = "kiotel_chatbot", user_role: str = "user") -> GuardrailResult:
     if not raw_text or not raw_text.strip():
         return GuardrailResult(passed=False, reason="Input is empty.")
 

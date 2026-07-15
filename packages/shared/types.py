@@ -25,7 +25,7 @@ class MessageRole(str, Enum):
 class ChatMessage:
     role: MessageRole
     content: str
-    portal_id: str = "portal_a"
+    portal_id: str = "kiotel_chatbot"
     session_id: Optional[str] = None
     metadata: dict = field(default_factory=dict)
 
@@ -73,7 +73,7 @@ class OrchestratorState:
     escalation: Optional[EscalationResult] = None
     guardrail_result: Optional[GuardrailResult] = None
     final_response: Optional[AIResponse] = None
-    portal_id: str = "portal_a"
+    portal_id: str = "kiotel_chatbot"
     session_id: str = ""
     user_role: str = "user"
     device_id: str = ""

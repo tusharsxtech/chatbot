@@ -9,7 +9,7 @@ Layer 2 — context_manager.py
           keep last 6 messages verbatim
   When: before node_generate_response if messages are long
 
-Layer 3 — portal_a/main.py session store
+Layer 3 — kiotel_chatbot/main.py session store
   Limit: 30 messages (15 turns) per session
   Action: sliding window, oldest dropped
   When: after every chat response

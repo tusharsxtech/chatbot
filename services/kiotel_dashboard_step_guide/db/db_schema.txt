@@ -9,7 +9,7 @@
   ├────────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────┤
   │ kiotel_rag depended on postgres_rag                │ kiotel_rag depends on postgres healthy + migrate completed        │
   ├────────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────┤
-  │ portal_a depended on postgres_chatbot + kiotel_rag │ Same + also waits for migrate completed                           │
+  │ kiotel_chatbot depended on postgres_chatbot + kiotel_rag │ Same + also waits for migrate completed                     │
   ├────────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────┤
   │ ingest/evaluate depended on postgres_rag           │ Now depend on postgres + migrate                                  │
   └────────────────────────────────────────────────────┴───────────────────────────────────────────────────────────────────┘
